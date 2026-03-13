@@ -1,5 +1,4 @@
-const jwt = require('jsonwebtoken');
-const { dbGet } = require('../db');
+const { supabaseAdmin } = require('../supabase');
 
 async function authenticate(req, res, next) {
   try {
@@ -8,17 +7,34 @@ async function authenticate(req, res, next) {
       return res.status(401).json({ message: 'Unauthenticated.' });
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const user = await dbGet(
-      'SELECT id, name, email, role, email_verified_at, created_at FROM users WHERE id = ?',
-      [decoded.id]
-    );
-    if (!user) return res.status(401).json({ message: 'Unauthenticated.' });
+    // Verify the Supabase JWT
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+    
+    if (error || !user) {
+      return res.status(401).json({ message: 'Unauthenticated.' });
+    }
 
-    req.user = user;
+    // Get profile data
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    req.user = {
+      id: user.id,
+      name: profile?.full_name || user.user_metadata?.full_name || '',
+      email: user.email,
+      role: profile?.role || 'teacher',
+      email_verified_at: user.email_confirmed_at,
+      created_at: user.created_at
+    };
+    req.supabaseToken = token;
+    
     next();
-  } catch {
+  } catch (err) {
+    console.error('Auth middleware error:', err);
     return res.status(401).json({ message: 'Unauthenticated.' });
   }
 }
@@ -35,8 +51,7 @@ const requireTeacher = requireRole('teacher');
 const requireStudent = requireRole('student');
 
 /**
- * requireVerified — skipped in development mode so you can test without email setup.
- * Set REQUIRE_EMAIL_VERIFICATION=true in .env to enforce it in production.
+ * requireVerified — checks if user's email is verified
  */
 async function requireVerified(req, res, next) {
   const enforce = process.env.REQUIRE_EMAIL_VERIFICATION === 'true';

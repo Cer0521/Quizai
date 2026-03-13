@@ -2,12 +2,10 @@ const router = require('express').Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { authenticate, requireVerified, requireTeacher, requireStudent } = require('../middleware/auth');
+const { authenticate, requireVerified, requireTeacher } = require('../middleware/auth');
 const quizController = require('../controllers/quiz');
-const profileController = require('../controllers/profile');
-const assignmentController = require('../controllers/assignment');
 const attemptController = require('../controllers/attempt');
-const notificationController = require('../controllers/notification');
+const subscriptionController = require('../controllers/subscription');
 
 // ── Multer ─────────────────────────────────────────────
 const storage = multer.diskStorage({
@@ -29,14 +27,21 @@ const upload = multer({
   },
 });
 
-// ── Profile ────────────────────────────────────────────
-router.patch('/profile', authenticate, profileController.updateProfile);
-router.put('/profile/password', authenticate, profileController.updatePassword);
-router.delete('/profile', authenticate, profileController.deleteAccount);
+// ── Public: Quiz by share code ─────────────────────────
+router.get('/quiz/share/:code', quizController.getByShareCode);
 
-// ── Notifications ──────────────────────────────────────
-router.get('/notifications', authenticate, notificationController.index);
-router.post('/notifications/read', authenticate, notificationController.markRead);
+// ── Public: Guest quiz taking ──────────────────────────
+router.post('/quiz/guest/start', attemptController.startGuestAttempt);
+router.put('/quiz/guest/attempts/:id/answers', attemptController.saveGuestAnswers);
+router.post('/quiz/guest/attempts/:id/submit', attemptController.submitGuestAttempt);
+router.get('/quiz/guest/attempts/:id/result', attemptController.getGuestResult);
+
+// ── Subscription ───────────────────────────────────────
+router.get('/subscription', authenticate, subscriptionController.getSubscription);
+router.post('/subscription/upgrade', authenticate, subscriptionController.upgradeSubscription);
+router.post('/subscription/referral', authenticate, subscriptionController.applyReferral);
+router.get('/subscription/referral-stats', authenticate, subscriptionController.getReferralStats);
+router.get('/subscription/limits', authenticate, subscriptionController.checkLimits);
 
 // ── Teacher: quiz management ───────────────────────────
 const ta = [authenticate, requireVerified, requireTeacher];
@@ -52,37 +57,65 @@ router.put('/quizzes/:id/questions/:qid', ...ta, quizController.updateQuestion);
 router.delete('/quizzes/:id/questions/:qid', ...ta, quizController.deleteQuestion);
 router.get('/quizzes/:id/analytics', ...ta, quizController.analytics);
 
-// ── Assignments ─────────────────────────────────────────
-router.get('/assignments', authenticate, requireVerified, assignmentController.index);
-router.post('/assignments', ...ta, assignmentController.store);
-router.delete('/assignments/:id', ...ta, assignmentController.destroy);
-router.get('/students', ...ta, assignmentController.listStudents);
-
-// ── Student: quiz taking ───────────────────────────────
-const sa = [authenticate, requireVerified, requireStudent];
-router.get('/assignments/:assignmentId/attempt', ...sa, attemptController.startOrResume);
-router.put('/attempts/:id/answers', ...sa, attemptController.saveAnswers);
-router.post('/attempts/:id/submit', ...sa, attemptController.submit);
-router.get('/attempts/history', ...sa, attemptController.history);
+// ── Authenticated quiz taking ──────────────────────────
+router.get('/quizzes/:quizId/attempt', authenticate, requireVerified, attemptController.startOrResume);
+router.put('/attempts/:id/answers', authenticate, requireVerified, attemptController.saveAnswers);
+router.post('/attempts/:id/submit', authenticate, requireVerified, attemptController.submit);
+router.get('/attempts/history', authenticate, requireVerified, attemptController.history);
 router.get('/attempts/:id/result', authenticate, requireVerified, attemptController.getResult);
 
 // ── Teacher dashboard stats ────────────────────────────
 router.get('/dashboard/stats', ...ta, async (req, res) => {
   try {
-    const { dbGet } = require('../db');
-    const [totalQuizzes, totalStudents, totalAssignments, avgScore] = await Promise.all([
-      dbGet('SELECT COUNT(*) as c FROM quizzes WHERE user_id = ?', [req.user.id]),
-      dbGet("SELECT COUNT(*) as c FROM users WHERE role = 'student'", []),
-      dbGet('SELECT COUNT(*) as c FROM quiz_assignments qa JOIN quizzes q ON qa.quiz_id = q.id WHERE q.user_id = ?', [req.user.id]),
-      dbGet('SELECT AVG(a.score) as avg FROM attempts a JOIN quizzes q ON a.quiz_id = q.id WHERE q.user_id = ? AND a.status = "submitted"', [req.user.id]),
-    ]);
+    const { supabaseAdmin } = require('../supabase');
+    
+    // Get quiz count
+    const { count: totalQuizzes } = await supabaseAdmin
+      .from('quizzes')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', req.user.id);
+
+    // Get total attempts across all quizzes
+    const { data: userQuizzes } = await supabaseAdmin
+      .from('quizzes')
+      .select('id')
+      .eq('user_id', req.user.id);
+
+    const quizIds = userQuizzes?.map(q => q.id) || [];
+    
+    let totalAttempts = 0;
+    let avgScore = 0;
+
+    if (quizIds.length > 0) {
+      const { count, data: attempts } = await supabaseAdmin
+        .from('quiz_attempts')
+        .select('score', { count: 'exact' })
+        .in('quiz_id', quizIds)
+        .eq('is_submitted', true);
+
+      totalAttempts = count || 0;
+
+      if (attempts && attempts.length > 0) {
+        const scores = attempts.map(a => a.score || 0);
+        avgScore = scores.reduce((sum, s) => sum + s, 0) / scores.length;
+      }
+    }
+
+    // Get subscription
+    const { data: subscription } = await supabaseAdmin
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .single();
+
     res.json({
-      total_quizzes: totalQuizzes?.c || 0,
-      total_students: totalStudents?.c || 0,
-      total_assignments: totalAssignments?.c || 0,
-      average_score: avgScore?.avg ? parseFloat(avgScore.avg.toFixed(1)) : 0,
+      total_quizzes: totalQuizzes || 0,
+      total_attempts: totalAttempts,
+      average_score: avgScore ? parseFloat(avgScore.toFixed(1)) : 0,
+      subscription: subscription || { tier: 'free', quiz_count_this_period: 0 }
     });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: 'Server error.' });
   }
 });

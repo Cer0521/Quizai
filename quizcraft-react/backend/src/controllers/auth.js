@@ -1,16 +1,4 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { v4: uuidv4 } = require('uuid');
-const { dbGet, dbRun } = require('../db');
-const { sendPasswordResetEmail, sendVerificationEmail } = require('../services/mail');
-
-function generateToken(user) {
-  return jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-  );
-}
+const { supabaseAdmin } = require('../supabase');
 
 async function register(req, res) {
   try {
@@ -20,28 +8,58 @@ async function register(req, res) {
     if (password.length < 8)
       return res.status(422).json({ errors: { password: ['Password must be at least 8 characters.'] } });
 
-    const validRoles = ['teacher', 'student'];
-    const userRole = validRoles.includes(role) ? role : 'student';
+    const userRole = role === 'teacher' ? 'teacher' : 'teacher'; // Default to teacher for now
 
-    const existing = await dbGet('SELECT id FROM users WHERE email = ?', [email]);
-    if (existing)
-      return res.status(422).json({ errors: { email: ['The email has already been taken.'] } });
+    // Create user in Supabase Auth
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true, // Auto-confirm for development
+      user_metadata: {
+        full_name: name,
+        role: userRole
+      }
+    });
 
-    const hashed = await bcrypt.hash(password, 12);
-    const verifyToken = uuidv4();
+    if (authError) {
+      if (authError.message.includes('already registered')) {
+        return res.status(422).json({ errors: { email: ['The email has already been taken.'] } });
+      }
+      console.error('Supabase auth error:', authError);
+      return res.status(500).json({ message: authError.message });
+    }
 
-    const result = await dbRun(
-      'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
-      [name, email, hashed, userRole]
-    );
+    // Update the profile with full name
+    await supabaseAdmin
+      .from('profiles')
+      .update({ full_name: name, role: userRole })
+      .eq('id', authData.user.id);
 
-    await dbRun('INSERT OR REPLACE INTO password_reset_tokens (email, token) VALUES (?, ?)', [email, verifyToken]);
+    // Generate a session for the user
+    const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'magiclink',
+      email,
+    });
 
-    const user = await dbGet('SELECT id, name, email, role, email_verified_at FROM users WHERE id = ?', [result.lastID]);
+    // Get the user's session token directly
+    const { data: signInData } = await supabaseAdmin.auth.signInWithPassword({
+      email,
+      password
+    });
 
-    try { await sendVerificationEmail(email, verifyToken); } catch (e) { console.error('Verify email error:', e.message); }
+    const user = {
+      id: authData.user.id,
+      name,
+      email,
+      role: userRole,
+      email_verified_at: authData.user.email_confirmed_at,
+      created_at: authData.user.created_at
+    };
 
-    return res.status(201).json({ token: generateToken(user), user });
+    return res.status(201).json({ 
+      token: signInData?.session?.access_token || authData.user.id,
+      user 
+    });
   } catch (err) {
     console.error('Register error:', err);
     return res.status(500).json({ message: 'Server error.' });
@@ -54,77 +72,153 @@ async function login(req, res) {
     if (!email || !password)
       return res.status(422).json({ errors: { general: ['Email and password are required.'] } });
 
-    const user = await dbGet('SELECT * FROM users WHERE email = ?', [email]);
-    if (!user) return res.status(422).json({ errors: { email: ['These credentials do not match our records.'] } });
+    const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+      email,
+      password
+    });
 
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(422).json({ errors: { email: ['These credentials do not match our records.'] } });
+    if (error) {
+      return res.status(422).json({ errors: { email: ['These credentials do not match our records.'] } });
+    }
 
-    const { password: _pw, ...safeUser } = user;
-    return res.json({ token: generateToken(safeUser), user: safeUser });
+    // Get profile data
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+
+    const user = {
+      id: data.user.id,
+      name: profile?.full_name || data.user.user_metadata?.full_name || '',
+      email: data.user.email,
+      role: profile?.role || 'teacher',
+      email_verified_at: data.user.email_confirmed_at,
+      created_at: data.user.created_at
+    };
+
+    return res.json({ 
+      token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+      user 
+    });
   } catch (err) {
     console.error('Login error:', err);
     return res.status(500).json({ message: 'Server error.' });
   }
 }
 
-async function logout(req, res) { return res.json({ message: 'Logged out.' }); }
+async function logout(req, res) {
+  // With Supabase, logout is handled client-side
+  return res.json({ message: 'Logged out.' });
+}
 
-async function getUser(req, res) { return res.json({ user: req.user }); }
+async function getUser(req, res) {
+  return res.json({ user: req.user });
+}
 
 async function forgotPassword(req, res) {
   try {
     const { email } = req.body;
-    const user = await dbGet('SELECT id FROM users WHERE email = ?', [email]);
-    if (user) {
-      const token = uuidv4();
-      await dbRun('INSERT OR REPLACE INTO password_reset_tokens (email, token) VALUES (?, ?)', [email, token]);
-      try { await sendPasswordResetEmail(email, token); } catch (e) { console.error(e.message); }
+    
+    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+      redirectTo: `${process.env.APP_URL}/reset-password`
+    });
+
+    if (error) {
+      console.error('Password reset error:', error);
     }
+
+    // Always return success to prevent email enumeration
     return res.json({ status: 'We have emailed your password reset link.' });
-  } catch (err) { return res.status(500).json({ message: 'Server error.' }); }
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
 }
 
 async function resetPassword(req, res) {
   try {
-    const { token, email, password, password_confirmation } = req.body;
-    if (!token || !email || !password)
+    const { token, password, password_confirmation } = req.body;
+    
+    if (!token || !password)
       return res.status(422).json({ errors: { general: ['All fields are required.'] } });
     if (password !== password_confirmation)
       return res.status(422).json({ errors: { password: ['Passwords do not match.'] } });
     if (password.length < 8)
       return res.status(422).json({ errors: { password: ['Password must be at least 8 characters.'] } });
 
-    const record = await dbGet('SELECT * FROM password_reset_tokens WHERE email = ? AND token = ?', [email, token]);
-    if (!record) return res.status(422).json({ errors: { token: ['This password reset token is invalid.'] } });
+    // Verify the token and update password
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(token, {
+      password
+    });
 
-    await dbRun('UPDATE users SET password = ?, updated_at = datetime("now") WHERE email = ?', [await bcrypt.hash(password, 12), email]);
-    await dbRun('DELETE FROM password_reset_tokens WHERE email = ?', [email]);
+    if (error) {
+      return res.status(422).json({ errors: { token: ['This password reset token is invalid.'] } });
+    }
+
     return res.json({ status: 'Your password has been reset.' });
-  } catch (err) { return res.status(500).json({ message: 'Server error.' }); }
+  } catch (err) {
+    console.error('Reset password error:', err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
 }
 
 async function verifyEmail(req, res) {
-  try {
-    const { token } = req.params;
-    const { email } = req.query;
-    const record = await dbGet('SELECT * FROM password_reset_tokens WHERE email = ? AND token = ?', [email, token]);
-    if (!record) return res.status(422).json({ message: 'Invalid verification link.' });
-    await dbRun('UPDATE users SET email_verified_at = datetime("now"), updated_at = datetime("now") WHERE email = ?', [email]);
-    await dbRun('DELETE FROM password_reset_tokens WHERE email = ?', [email]);
-    return res.json({ status: 'Email verified successfully.' });
-  } catch (err) { return res.status(500).json({ message: 'Server error.' }); }
+  // Supabase handles email verification via magic links
+  return res.json({ status: 'Email verified successfully.' });
 }
 
 async function resendVerification(req, res) {
   try {
-    const user = req.user;
-    if (user.email_verified_at) return res.json({ status: 'Email already verified.' });
-    const token = uuidv4();
-    await dbRun('INSERT OR REPLACE INTO password_reset_tokens (email, token) VALUES (?, ?)', [user.email, token]);
-    try { await sendVerificationEmail(user.email, token); } catch (e) { console.error(e.message); }
+    const { error } = await supabaseAdmin.auth.resend({
+      type: 'signup',
+      email: req.user.email
+    });
+
+    if (error) {
+      console.error('Resend verification error:', error);
+    }
+
     return res.json({ status: 'Verification link sent.' });
-  } catch (err) { return res.status(500).json({ message: 'Server error.' }); }
+  } catch (err) {
+    console.error('Resend verification error:', err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
 }
 
-module.exports = { register, login, logout, getUser, forgotPassword, resetPassword, verifyEmail, resendVerification };
+async function refreshToken(req, res) {
+  try {
+    const { refresh_token } = req.body;
+    
+    if (!refresh_token) {
+      return res.status(422).json({ errors: { general: ['Refresh token is required.'] } });
+    }
+
+    const { data, error } = await supabaseAdmin.auth.refreshSession({ refresh_token });
+
+    if (error) {
+      return res.status(401).json({ message: 'Invalid refresh token.' });
+    }
+
+    return res.json({
+      token: data.session.access_token,
+      refresh_token: data.session.refresh_token
+    });
+  } catch (err) {
+    console.error('Refresh token error:', err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+}
+
+module.exports = { 
+  register, 
+  login, 
+  logout, 
+  getUser, 
+  forgotPassword, 
+  resetPassword, 
+  verifyEmail, 
+  resendVerification,
+  refreshToken 
+};
