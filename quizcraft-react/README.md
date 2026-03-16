@@ -163,6 +163,8 @@ npm install
 cp .env.example .env
 ```
 
+> Run the copy command only once on first setup. Recopying later will overwrite `backend/.env` and can bring back placeholder values that break `npm run migrate`.
+
 On Windows PowerShell, use:
 
 ```powershell

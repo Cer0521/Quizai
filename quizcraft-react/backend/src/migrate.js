@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { Pool } = require('pg');
+const dns = require('dns');
 
 const DATABASE_URL = process.env.DIRECT_URL || process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
 
@@ -13,9 +14,35 @@ if (/[<>\[\]]/.test(DATABASE_URL) || /YOUR_DB_PASSWORD|YOUR-PASSWORD|project-ref
   process.exit(1);
 }
 
+const resolver = new dns.Resolver();
+resolver.setServers((process.env.DB_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',').map(s => s.trim()).filter(Boolean));
+
+function dnsLookup(hostname, options, callback) {
+  const family = typeof options === 'object' && options?.family ? options.family : 0;
+
+  const done = (err, address, fam) => {
+    if (err) return callback(err);
+    callback(null, address, fam);
+  };
+
+  const tryIPv4 = () => {
+    resolver.resolve4(hostname, (err4, addrs4) => {
+      if (err4 || !addrs4?.length) return done(err4 || new Error(`DNS resolve failed for ${hostname}`));
+      done(null, addrs4[0], 4);
+    });
+  };
+
+  if (family === 4) return tryIPv4();
+  resolver.resolve6(hostname, (err6, addrs6) => {
+    if (!err6 && addrs6?.length) return done(null, addrs6[0], 6);
+    tryIPv4();
+  });
+}
+
 const pool = new Pool({
   connectionString: DATABASE_URL,
   ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
+  lookup: dnsLookup,
 });
 
 async function run(sql, label) {
@@ -87,12 +114,20 @@ async function migrate() {
       CONSTRAINT quizzes_user_fk FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`, 'quizzes');
 
+  await ensureColumn('quizzes', 'user_id', `ALTER TABLE quizzes ADD COLUMN user_id BIGINT`);
+  await ensureColumn('quizzes', 'title', `ALTER TABLE quizzes ADD COLUMN title TEXT`);
   await ensureColumn('quizzes', 'description', `ALTER TABLE quizzes ADD COLUMN description TEXT NULL`);
   await ensureColumn('quizzes', 'source_type', `ALTER TABLE quizzes ADD COLUMN source_type TEXT NOT NULL DEFAULT 'ai'`);
+  await ensureColumn('quizzes', 'file_path', `ALTER TABLE quizzes ADD COLUMN file_path TEXT NULL`);
   await ensureColumn('quizzes', 'time_limit', `ALTER TABLE quizzes ADD COLUMN time_limit INTEGER NULL`);
+  await ensureColumn('quizzes', 'total_questions', `ALTER TABLE quizzes ADD COLUMN total_questions INTEGER NOT NULL DEFAULT 0`);
   await ensureColumn('quizzes', 'is_published', `ALTER TABLE quizzes ADD COLUMN is_published INTEGER NOT NULL DEFAULT 0`);
   await ensureColumn('quizzes', 'share_token', `ALTER TABLE quizzes ADD COLUMN share_token TEXT NULL`);
   await ensureColumn('quizzes', 'show_score', `ALTER TABLE quizzes ADD COLUMN show_score INTEGER NOT NULL DEFAULT 1`);
+  await ensureColumn('quizzes', 'sections_config', `ALTER TABLE quizzes ADD COLUMN sections_config TEXT NULL`);
+  await ensureColumn('quizzes', 'ai_response', `ALTER TABLE quizzes ADD COLUMN ai_response TEXT NULL`);
+  await ensureColumn('quizzes', 'created_at', `ALTER TABLE quizzes ADD COLUMN created_at TIMESTAMPTZ DEFAULT NOW()`);
+  await ensureColumn('quizzes', 'updated_at', `ALTER TABLE quizzes ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW()`);
 
   await run(`
     CREATE TABLE IF NOT EXISTS questions (

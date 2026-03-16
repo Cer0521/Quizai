@@ -45,8 +45,13 @@ async function gradeAnswers(questions, answers, answerTable) {
     let isCorrect = false;
     if (q.question_type === 'multiple_choice' || q.question_type === 'true_false') {
       if (ans.selected_option_id) {
-        const opt = await dbGet('SELECT option_label FROM options WHERE id = ?', [ans.selected_option_id]);
-        isCorrect = opt && opt.option_label.trim().toLowerCase() === q.correct_answer.trim().toLowerCase();
+        const opt = await dbGet('SELECT option_label, option_text FROM options WHERE id = ?', [ans.selected_option_id]);
+        if (opt) {
+          // Check if correct_answer matches the option label (A, B, C, D) or the option text
+          const labelMatch = opt.option_label.trim().toLowerCase() === q.correct_answer.trim().toLowerCase();
+          const textMatch = opt.option_text.trim().toLowerCase() === q.correct_answer.trim().toLowerCase();
+          isCorrect = labelMatch || textMatch;
+        }
       }
       if (!isCorrect && ans.answer_text) {
         isCorrect = ans.answer_text.trim().toLowerCase() === q.correct_answer.trim().toLowerCase();
@@ -93,8 +98,13 @@ async function gradeAllAnswers(questions, answers, answerTable) {
     let isCorrect = false;
     if (q.question_type === 'multiple_choice' || q.question_type === 'true_false') {
       if (ans.selected_option_id) {
-        const opt = await dbGet('SELECT option_label FROM options WHERE id = ?', [ans.selected_option_id]);
-        isCorrect = opt && opt.option_label.trim().toLowerCase() === q.correct_answer.trim().toLowerCase();
+        const opt = await dbGet('SELECT option_label, option_text FROM options WHERE id = ?', [ans.selected_option_id]);
+        if (opt) {
+          // Check if correct_answer matches the option label (A, B, C, D) or the option text
+          const labelMatch = opt.option_label.trim().toLowerCase() === q.correct_answer.trim().toLowerCase();
+          const textMatch = opt.option_text.trim().toLowerCase() === q.correct_answer.trim().toLowerCase();
+          isCorrect = labelMatch || textMatch;
+        }
       }
       if (!isCorrect && ans.answer_text) {
         isCorrect = ans.answer_text.trim().toLowerCase() === q.correct_answer.trim().toLowerCase();

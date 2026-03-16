@@ -1,6 +1,32 @@
 const { Pool } = require('pg');
+const dns = require('dns');
 
 const DATABASE_URL = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
+
+const resolver = new dns.Resolver();
+resolver.setServers((process.env.DB_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',').map(s => s.trim()).filter(Boolean));
+
+function dnsLookup(hostname, options, callback) {
+  const family = typeof options === 'object' && options?.family ? options.family : 0;
+
+  const done = (err, address, fam) => {
+    if (err) return callback(err);
+    callback(null, address, fam);
+  };
+
+  const tryIPv4 = () => {
+    resolver.resolve4(hostname, (err4, addrs4) => {
+      if (err4 || !addrs4?.length) return done(err4 || new Error(`DNS resolve failed for ${hostname}`));
+      done(null, addrs4[0], 4);
+    });
+  };
+
+  if (family === 4) return tryIPv4();
+  resolver.resolve6(hostname, (err6, addrs6) => {
+    if (!err6 && addrs6?.length) return done(null, addrs6[0], 6);
+    tryIPv4();
+  });
+}
 
 let pool;
 
@@ -25,6 +51,7 @@ function getDb() {
     pool = new Pool({
       connectionString: DATABASE_URL,
       ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
+      lookup: dnsLookup,
     });
   }
   return pool;

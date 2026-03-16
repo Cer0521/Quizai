@@ -8,8 +8,23 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
+  const loadData = () => {
+    setLoading(true)
+    api.get('/assignments')
+      .then(r => setAssignments(r.data.assignments))
+      .catch(err => {
+        console.error('Dashboard load error:', err)
+        if (err.response?.status === 401) {
+          // Will be handled by axios interceptor
+        } else {
+          alert('Failed to load assignments. Please refresh the page.')
+        }
+      })
+      .finally(() => setLoading(false))
+  }
+
   useEffect(() => {
-    api.get('/assignments').then(r => setAssignments(r.data.assignments)).finally(() => setLoading(false))
+    loadData()
   }, [])
 
   function statusBadge(status) {
@@ -28,7 +43,14 @@ export default function StudentDashboard() {
   const avgScore = scores.length ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length) : null
 
   return (
-    <AppLayout header={<h2 className="text-xl font-bold text-gray-800">My Quizzes</h2>}>
+    <AppLayout header={
+      <div className="flex justify-between items-center w-full">
+        <h2 className="text-xl font-bold text-gray-800">My Quizzes</h2>
+        <button onClick={loadData} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1">
+          <span className={loading ? 'animate-spin' : ''}>⟳</span> Refresh
+        </button>
+      </div>
+    }>
       {loading ? <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-b-2 border-red-600 rounded-full" /></div> : (
         <div className="space-y-6">
           {/* Stats */}

@@ -17,18 +17,24 @@ async function stats(req, res) {
       });
     }
 
-    const [totalQuizzes, totalStudents, totalAssignments, avgScore] = await Promise.all([
+    const [totalQuizzes, publishedQuizzes, totalStudents, totalAssignments, avgScore] = await Promise.all([
       dbGet('SELECT COUNT(*) as c FROM quizzes WHERE user_id = ?', [req.user.id]),
+      dbGet('SELECT COUNT(*) as c FROM quizzes WHERE user_id = ? AND is_published = 1', [req.user.id]),
       dbGet("SELECT COUNT(*) as c FROM users WHERE role = 'student'", []),
       dbGet('SELECT COUNT(*) as c FROM quiz_assignments qa JOIN quizzes q ON qa.quiz_id = q.id WHERE q.user_id = ?', [req.user.id]),
-      dbGet('SELECT AVG(a.score) as avg FROM attempts a JOIN quizzes q ON a.quiz_id = q.id WHERE q.user_id = ? AND a.status = "submitted"', [req.user.id]),
+      dbGet("SELECT AVG(a.score) as avg FROM attempts a JOIN quizzes q ON a.quiz_id = q.id WHERE q.user_id = ? AND a.status = 'submitted'", [req.user.id]),
     ]);
+
+    const averageScore = avgScore?.avg !== null && avgScore?.avg !== undefined
+      ? Number(parseFloat(avgScore.avg).toFixed(1))
+      : 0;
 
     return res.json({
       total_quizzes: totalQuizzes?.c || 0,
+      published_quizzes: publishedQuizzes?.c || 0,
       total_students: totalStudents?.c || 0,
       total_assignments: totalAssignments?.c || 0,
-      average_score: avgScore?.avg ? parseFloat(avgScore.avg.toFixed(1)) : 0,
+      average_score: averageScore,
     });
   } catch (err) {
     return res.status(500).json({ message: 'Server error.' });

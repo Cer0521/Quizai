@@ -19,7 +19,17 @@ export default function Login() {
       // Route to correct dashboard based on role
       navigate(data.user.role === 'teacher' ? '/teacher/dashboard' : '/student/dashboard')
     } catch (err) {
-      setErrors(err.response?.data?.errors || { general: ['Something went wrong.'] })
+      console.error('Login error:', err)
+      // Better error handling
+      if (err.response?.status === 500) {
+        setErrors({ general: ['Server error. Please check if the backend is running and database is connected.'] })
+      } else if (err.response?.status === 422) {
+        setErrors(err.response.data.errors || { general: ['Invalid credentials.'] })
+      } else if (!err.response) {
+        setErrors({ general: ['Cannot connect to server. Please check if the backend is running.'] })
+      } else {
+        setErrors(err.response?.data?.errors || { general: ['Something went wrong. Please try again.'] })
+      }
     } finally {
       setSubmitting(false)
     }

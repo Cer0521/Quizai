@@ -55,8 +55,22 @@ export default function AssignQuiz() {
   if (loading) return <AppLayout><div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-b-2 border-red-600 rounded-full" /></div></AppLayout>
 
   return (
-    <AppLayout header={<h2 className="text-xl font-bold text-gray-800">Assign Quiz to Students</h2>}>
+    <AppLayout header={<h2 className="text-xl font-bold text-gray-800">Assign Quiz to Registered Students</h2>}>
       <div className="max-w-xl mx-auto space-y-5">
+        {/* Info banner */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex gap-3">
+            <span className="text-blue-600 text-xl flex-shrink-0">ℹ️</span>
+            <div className="text-sm">
+              <p className="font-semibold text-blue-900 mb-1">Two ways to share quizzes:</p>
+              <ul className="space-y-1 text-blue-800">
+                <li><strong>Assign to Students</strong> (this page) - For registered students in your system</li>
+                <li><strong>Share via Link</strong> - For anyone with the link (guests). <button onClick={() => navigate('/teacher/quizzes')} className="underline hover:text-blue-900">Publish quiz to get share link →</button></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
         {success && <div className="bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded-lg text-sm">{success}</div>}
 
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
@@ -77,7 +91,18 @@ export default function AssignQuiz() {
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3 focus:border-red-500 focus:ring-1 focus:ring-red-500" />
 
           {students.length === 0
-            ? <p className="text-sm text-gray-400 text-center py-4">No students registered yet.</p>
+            ? <div className="text-center py-8">
+                <p className="text-4xl mb-3">👥</p>
+                <p className="text-sm text-gray-600 font-medium mb-2">No registered students in your system.</p>
+                <p className="text-xs text-gray-500 mb-4">This page is for assigning quizzes to registered students only.</p>
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm">
+                  <p className="text-yellow-800"><strong>Want to share with anyone?</strong></p>
+                  <p className="text-yellow-700 text-xs mt-1">Use the <strong>Publish</strong> feature to generate a shareable link that anyone can access.</p>
+                  <button onClick={() => navigate('/teacher/quizzes')} className="mt-2 text-yellow-900 underline hover:text-yellow-950 text-xs font-semibold">
+                    Go to Quiz List to Publish →
+                  </button>
+                </div>
+              </div>
             : <div className="space-y-2 max-h-64 overflow-y-auto">
                 {filtered.map(s => {
                   const isAssigned = alreadyAssigned.includes(s.id)

@@ -67,3 +67,11 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Uploaded files
+backend/uploads/
+quizcraft-react/backend/uploads/
+
+# Supabase local dev
+supabase/.temp/
+supabase/.branches/

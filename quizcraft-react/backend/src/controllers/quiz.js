@@ -27,11 +27,18 @@ async function index(req, res) {
     const rows = await dbAll(
       `SELECT q.id, q.title, q.description, q.source_type, q.total_questions,
               q.is_published, q.time_limit, q.share_token, q.show_score, q.created_at,
-              (SELECT COUNT(*) FROM quiz_assignments WHERE quiz_id = q.id) AS assigned_count
+              (SELECT COUNT(*) FROM quiz_assignments WHERE quiz_id = q.id) AS assigned_count,
+              (SELECT COUNT(DISTINCT a.student_id) FROM attempts a WHERE a.quiz_id = q.id AND a.status = 'submitted') AS completed_count,
+              (SELECT COUNT(DISTINCT ga.id) FROM guest_attempts ga WHERE ga.quiz_id = q.id AND ga.status = 'submitted') AS guest_completed_count
        FROM quizzes q WHERE q.user_id = ? ORDER BY q.created_at DESC`,
       [req.user.id]
     );
-    return res.json({ quizzes: rows });
+    // Add total completed count (registered + guests)
+    const quizzesWithTotals = rows.map(q => ({
+      ...q,
+      total_completed: (q.completed_count || 0) + (q.guest_completed_count || 0)
+    }));
+    return res.json({ quizzes: quizzesWithTotals });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
@@ -306,6 +313,7 @@ async function analytics(req, res) {
     const inProgress = assignments.filter(a => a.status === 'in_progress').length;
     const notStarted = assignments.filter(a => a.status === 'pending').length;
 
+    // Get submitted attempts from registered students
     const submittedAttempts = await dbAll(
       `SELECT a.*, u.name, u.email FROM attempts a
        JOIN users u ON a.student_id = u.id
@@ -314,10 +322,27 @@ async function analytics(req, res) {
       [quiz.id]
     );
 
-    const scores = submittedAttempts.map(a => a.score || 0);
+    // Get submitted attempts from guests
+    const guestAttempts = await dbAll(
+      `SELECT ga.*, ga.student_display_name as name, 'guest' as email
+       FROM guest_attempts ga
+       WHERE ga.quiz_id = ? AND ga.status = 'submitted'
+       ORDER BY ga.submitted_at DESC`,
+      [quiz.id]
+    );
+
+    // Combine both registered and guest attempts
+    const allAttempts = [...submittedAttempts, ...guestAttempts];
+    const scores = allAttempts.map(a => a.score || 0);
     const avgScore = scores.length ? (scores.reduce((s, v) => s + v, 0) / scores.length).toFixed(2) : 0;
     const highestScore = scores.length ? Math.max(...scores) : 0;
     const lowestScore = scores.length ? Math.min(...scores) : 0;
+
+    // Calculate pass/fail stats (passing grade is 60%)
+    const passingGrade = 60;
+    const passedCount = scores.filter(s => s >= passingGrade).length;
+    const failedCount = scores.filter(s => s < passingGrade).length;
+    const passRate = scores.length ? ((passedCount / scores.length) * 100).toFixed(2) : 0;
 
     const distribution = {
       low:       { range: '0–49%',   count: scores.filter(s => s < 50).length },
@@ -329,17 +354,32 @@ async function analytics(req, res) {
     return res.json({
       quiz: { id: quiz.id, title: quiz.title, total_questions: quiz.total_questions },
       summary: {
-        total_assigned: totalAssigned, total_completed: completed,
-        total_in_progress: inProgress, total_not_started: notStarted,
+        total_assigned: totalAssigned,
+        total_completed: completed,
+        total_in_progress: inProgress,
+        total_not_started: notStarted,
+        total_attempts: allAttempts.length,
         completion_rate: totalAssigned ? ((completed / totalAssigned) * 100).toFixed(2) : 0,
-        average_score: parseFloat(avgScore), highest_score: highestScore, lowest_score: lowestScore,
+        average_score: parseFloat(avgScore),
+        highest_score: highestScore,
+        lowest_score: lowestScore,
+        passed_count: passedCount,
+        failed_count: failedCount,
+        pass_rate: parseFloat(passRate),
+        passing_grade: passingGrade,
       },
       score_distribution: distribution,
-      students: submittedAttempts.map(a => ({
-        student_id: a.student_id, name: a.name, email: a.email,
-        score: a.score, total_correct: a.total_correct,
-        time_taken: a.time_taken, submitted_at: a.submitted_at, status: a.status,
+      students: allAttempts.map(a => ({
+        student_id: a.student_id || null,
+        name: a.name,
+        email: a.email,
+        score: a.score,
+        total_correct: a.total_correct,
+        time_taken: a.time_taken,
+        submitted_at: a.submitted_at,
+        status: a.status,
         photo_data: a.photo_data || null,
+        is_guest: !a.student_id,
       })),
     });
   } catch (err) {

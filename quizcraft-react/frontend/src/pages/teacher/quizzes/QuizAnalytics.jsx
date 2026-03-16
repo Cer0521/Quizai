@@ -61,9 +61,10 @@ export default function QuizAnalytics() {
     }>
       <div className="space-y-6">
         {/* Summary cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard label="Total Assigned" value={summary.total_assigned} color="text-blue-600" />
-          <StatCard label="Completed" value={summary.total_completed} sub={`${summary.completion_rate}% rate`} color="text-green-600" />
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <StatCard label="Total Attempts" value={summary.total_attempts || 0} color="text-blue-600" />
+          <StatCard label="Passed" value={summary.passed_count || 0} sub={`${summary.pass_rate || 0}% pass rate`} color="text-green-600" />
+          <StatCard label="Failed" value={summary.failed_count || 0} sub={`< ${summary.passing_grade || 60}%`} color="text-red-600" />
           <StatCard label="Average Score" value={`${summary.average_score}%`} color="text-purple-600" />
           <StatCard label="Score Range" value={`${summary.lowest_score}–${summary.highest_score}%`} color="text-orange-600" />
         </div>
@@ -117,34 +118,49 @@ export default function QuizAnalytics() {
                     <tr className="text-left text-xs text-gray-500 uppercase">
                       <th className="pb-2 pr-4">Student</th>
                       <th className="pb-2 pr-4">Score</th>
+                      <th className="pb-2 pr-4">Status</th>
                       <th className="pb-2 pr-4">Correct</th>
                       <th className="pb-2 pr-4">Time Taken</th>
                       <th className="pb-2">Submitted</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map(s => (
-                      <tr key={s.student_id} className="border-b last:border-0 hover:bg-gray-50">
-                        <td className="py-3 pr-4">
-                          <div className="flex items-center gap-2.5">
-                            {s.photo_data
-                              ? <img src={s.photo_data} alt={s.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-gray-200" />
-                              : <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-gray-400 text-xs font-bold">{s.name?.[0]?.toUpperCase() || '?'}</div>
-                            }
-                            <div>
-                              <p className="font-medium text-gray-800">{s.name}</p>
-                              <p className="text-xs text-gray-400">{s.email}</p>
+                    {filtered.map((s, idx) => {
+                      const passingGrade = summary.passing_grade || 60
+                      const passed = s.score >= passingGrade
+                      return (
+                        <tr key={s.student_id || `guest-${idx}`} className="border-b last:border-0 hover:bg-gray-50">
+                          <td className="py-3 pr-4">
+                            <div className="flex items-center gap-2.5">
+                              {s.photo_data
+                                ? <img src={s.photo_data} alt={s.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-gray-200" />
+                                : <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-gray-400 text-xs font-bold">{s.name?.[0]?.toUpperCase() || '?'}</div>
+                              }
+                              <div>
+                                <p className="font-medium text-gray-800">
+                                  {s.name}
+                                  {s.is_guest && <span className="ml-1.5 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">Guest</span>}
+                                </p>
+                                <p className="text-xs text-gray-400">{s.email}</p>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="py-3 pr-4">
-                          <span className={`font-bold text-base ${scoreColor(s.score)}`}>{s.score}%</span>
-                        </td>
-                        <td className="py-3 pr-4 text-gray-600">{s.total_correct} / {quiz.total_questions}</td>
-                        <td className="py-3 pr-4 text-gray-500">{formatTime(s.time_taken)}</td>
-                        <td className="py-3 text-gray-400 text-xs">{s.submitted_at?.split('T')[0]}</td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="py-3 pr-4">
+                            <span className={`font-bold text-base ${scoreColor(s.score)}`}>{s.score}%</span>
+                          </td>
+                          <td className="py-3 pr-4">
+                            <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                              passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            }`}>
+                              {passed ? '✓ Passed' : '✗ Failed'}
+                            </span>
+                          </td>
+                          <td className="py-3 pr-4 text-gray-600">{s.total_correct} / {quiz.total_questions}</td>
+                          <td className="py-3 pr-4 text-gray-500">{formatTime(s.time_taken)}</td>
+                          <td className="py-3 text-gray-400 text-xs">{s.submitted_at?.split('T')[0]}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
