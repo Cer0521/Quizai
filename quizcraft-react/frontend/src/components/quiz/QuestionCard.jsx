@@ -6,9 +6,15 @@ export default function QuestionCard({ question, index, answer, onChange, disabl
         <span className="flex-shrink-0 w-8 h-8 bg-red-600 text-white rounded-full flex items-center justify-center text-sm font-bold">{index + 1}</span>
         <div className="flex-1">
           <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mb-2 ${
-            question_type === 'multiple_choice' ? 'bg-blue-100 text-blue-700' : question_type === 'true_false' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'
+            question_type === 'multiple_choice' ? 'bg-blue-100 text-blue-700'
+            : question_type === 'true_false' ? 'bg-purple-100 text-purple-700'
+            : question_type === 'essay' ? 'bg-orange-100 text-orange-700'
+            : 'bg-green-100 text-green-700'
           }`}>
-            {question_type === 'multiple_choice' ? 'Multiple Choice' : question_type === 'true_false' ? 'True or False' : 'Enumeration'}
+            {question_type === 'multiple_choice' ? 'Multiple Choice'
+              : question_type === 'true_false' ? 'True or False'
+              : question_type === 'essay' ? 'Essay'
+              : 'Enumeration'}
           </span>
           <p className="text-gray-900 font-medium leading-relaxed">{question_text}</p>
         </div>
@@ -46,6 +52,16 @@ export default function QuestionCard({ question, index, answer, onChange, disabl
             onChange={e => !disabled && onChange({ answer_text: e.target.value, selected_option_id: null })}
             placeholder="Type your answer..."
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 disabled:opacity-60 disabled:cursor-not-allowed" />
+        </div>
+      )}
+      {question_type === 'essay' && (
+        <div className="pl-11">
+          <textarea disabled={disabled} value={answer?.answer_text || ''}
+            onChange={e => !disabled && onChange({ answer_text: e.target.value, selected_option_id: null })}
+            placeholder="Write your answer here..."
+            rows={5}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 disabled:opacity-60 disabled:cursor-not-allowed resize-y" />
+          <p className="text-xs text-gray-400 mt-1">Your essay will be graded by AI.</p>
         </div>
       )}
     </div>

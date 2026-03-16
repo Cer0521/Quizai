@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext'
 export default function Register() {
   const { register } = useAuth()
   const navigate = useNavigate()
-  const [form, setForm] = useState({ name: '', email: '', password: '', password_confirmation: '', role: 'student' })
+  const [form, setForm] = useState({ name: '', email: '', password: '', password_confirmation: '' })
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
 
@@ -15,8 +15,8 @@ export default function Register() {
     setSubmitting(true)
     setErrors({})
     try {
-      const data = await register(form.name, form.email, form.password, form.password_confirmation, form.role)
-      navigate(data.user.role === 'teacher' ? '/teacher/dashboard' : '/student/dashboard')
+      await register(form.name, form.email, form.password, form.password_confirmation)
+      navigate('/teacher/dashboard')
     } catch (err) {
       setErrors(err.response?.data?.errors || { general: ['Something went wrong.'] })
     } finally {
@@ -28,18 +28,7 @@ export default function Register() {
     <GuestLayout>
       <form onSubmit={handleSubmit} className="space-y-4">
         {errors.general && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded text-sm">{errors.general[0]}</div>}
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">I am a...</label>
-          <div className="mt-1 grid grid-cols-2 gap-3">
-            {['teacher', 'student'].map(r => (
-              <button key={r} type="button" onClick={() => setForm({ ...form, role: r })}
-                className={`py-2 rounded-lg border-2 font-semibold text-sm capitalize transition ${form.role === r ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
-                {r === 'teacher' ? '👩‍🏫 Teacher' : '👨‍🎓 Student'}
-              </button>
-            ))}
-          </div>
-        </div>
+        <p className="text-sm text-gray-600">Registration is currently enabled for teacher accounts only.</p>
 
         <div>
           <label className="block text-sm font-medium text-gray-700">Name</label>

@@ -1,49 +1,75 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const { Pool } = require('pg');
 
-const DB_PATH = process.env.DB_PATH || './database.sqlite';
+const DATABASE_URL = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
 
-let db;
+let pool;
+
+function toPgSql(sql) {
+  let out = sql;
+  let idx = 0;
+
+  // Keep legacy SQL calls working while moving to PostgreSQL.
+  out = out.replace(/datetime\(("|')now\1\)/gi, 'NOW()');
+  out = out.replace(/\bMAX\(0\s*,/g, 'GREATEST(0,');
+  out = out.replace(/\?/g, () => `$${++idx}`);
+
+  return out;
+}
 
 function getDb() {
-  if (!db) {
-    db = new sqlite3.Database(path.resolve(DB_PATH), (err) => {
-      if (err) {
-        console.error('Database connection error:', err.message);
-        process.exit(1);
-      }
-      db.run('PRAGMA foreign_keys = ON');
+  if (!DATABASE_URL) {
+    throw new Error('Missing DATABASE_URL (or SUPABASE_DB_URL) environment variable.');
+  }
+
+  if (!pool) {
+    pool = new Pool({
+      connectionString: DATABASE_URL,
+      ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
     });
   }
-  return db;
+  return pool;
 }
 
-// Promisified helpers
-function dbGet(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    getDb().get(sql, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
+async function query(sql, params = []) {
+  const text = toPgSql(sql);
+  return getDb().query(text, params);
 }
 
-function dbAll(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    getDb().all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
+async function dbGet(sql, params = []) {
+  const result = await query(sql, params);
+  return result.rows[0];
 }
 
-function dbRun(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    getDb().run(sql, params, function (err) {
-      if (err) reject(err);
-      else resolve({ lastID: this.lastID, changes: this.changes });
-    });
-  });
+async function dbAll(sql, params = []) {
+  const result = await query(sql, params);
+  return result.rows;
+}
+
+async function dbRun(sql, params = []) {
+  const insertMatch = sql.match(/^\s*insert\s+into\s+([a-z_]+)/i);
+  const tablesWithId = new Set([
+    'users',
+    'quizzes',
+    'questions',
+    'options',
+    'quiz_assignments',
+    'attempts',
+    'answers',
+    'guest_attempts',
+    'guest_answers',
+    'notifications',
+  ]);
+
+  let runSql = sql;
+  if (insertMatch && tablesWithId.has(insertMatch[1].toLowerCase()) && !/\breturning\b/i.test(sql)) {
+    runSql = `${sql} RETURNING id`;
+  }
+
+  const result = await query(runSql, params);
+  return {
+    lastID: result.rows?.[0]?.id ?? null,
+    changes: result.rowCount ?? 0,
+  };
 }
 
 module.exports = { getDb, dbGet, dbAll, dbRun };

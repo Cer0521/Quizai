@@ -22,6 +22,8 @@ import QuizResult from './pages/student/quizzes/QuizResult'
 import AttemptHistory from './pages/student/history/AttemptHistory'
 
 import Profile from './pages/shared/Profile'
+import GuestQuizPage from './pages/guest/GuestQuizPage'
+import GuestQuizResult from './pages/guest/GuestQuizResult'
 
 const Spinner = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -86,6 +88,10 @@ export default function App() {
 
       {/* Shared */}
       <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
+
+      {/* Public: guest quiz access (no login required) */}
+      <Route path="/quiz/:token" element={<GuestQuizPage />} />
+      <Route path="/quiz/:token/result/:attemptId" element={<GuestQuizResult />} />
 
       {/* Legacy redirects */}
       <Route path="/dashboard" element={<RequireAuth><RoleDashboard /></RequireAuth>} />

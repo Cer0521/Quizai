@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
+const { randomUUID } = require('crypto');
 const { dbGet, dbAll, dbRun } = require('../db');
+const { getSupabaseClient } = require('../services/supabase');
 const { generateFromDocument } = require('../services/gemini');
 
 function parseQuiz(row) {
@@ -15,9 +17,16 @@ function parseQuiz(row) {
 // ── Teacher: list own quizzes ──────────────────────────
 async function index(req, res) {
   try {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      const { data, error } = await supabase.rpc('get_teacher_quizzes', { p_user_id: req.user.id });
+      if (error) return res.status(500).json({ message: error.message });
+      return res.json({ quizzes: data || [] });
+    }
+
     const rows = await dbAll(
       `SELECT q.id, q.title, q.description, q.source_type, q.total_questions,
-              q.is_published, q.time_limit, q.created_at,
+              q.is_published, q.time_limit, q.share_token, q.show_score, q.created_at,
               (SELECT COUNT(*) FROM quiz_assignments WHERE quiz_id = q.id) AS assigned_count
        FROM quizzes q WHERE q.user_id = ? ORDER BY q.created_at DESC`,
       [req.user.id]
@@ -32,6 +41,16 @@ async function index(req, res) {
 // ── Teacher: get single quiz with questions ────────────
 async function show(req, res) {
   try {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      const { data, error } = await supabase.rpc('get_teacher_quiz_detail', {
+        p_quiz_id: req.params.id,
+        p_user_id: req.user.id,
+      });
+      if (error) return res.status(404).json({ message: error.message });
+      return res.json({ quiz: data });
+    }
+
     const quiz = await dbGet('SELECT * FROM quizzes WHERE id = ?', [req.params.id]);
     if (!quiz) return res.status(404).json({ message: 'Not found.' });
     if (quiz.user_id !== req.user.id) return res.status(403).json({ message: 'Forbidden.' });
@@ -80,7 +99,7 @@ async function store(req, res) {
     parsedSections.forEach((section, i) => {
       prompt += `Section ${i + 1}: ${section.count} Questions, Format: ${section.type}.\n`;
     });
-    prompt += `\nReturn the output STRICTLY as a JSON object with a 'sections' array. Each section must have a 'title', 'type', and an array of 'questions'. Each question must have the 'question_text', an array of 'options' (if multiple choice), and the 'correct_answer'.`;
+    prompt += `\nReturn the output STRICTLY as a JSON object with a 'sections' array. Each section must have a 'title', 'type', and an array of 'questions'. Each question must have the 'question_text', an array of 'options' (if multiple choice), and the 'correct_answer'. For Essay questions, 'correct_answer' should describe the key points expected in a good answer.`;
 
     const aiResponse = await generateFromDocument(prompt, mimeType, base64Data);
     await dbRun('UPDATE quizzes SET ai_response = ?, updated_at = datetime("now") WHERE id = ?', [JSON.stringify(aiResponse), quizId]);
@@ -91,6 +110,7 @@ async function store(req, res) {
       for (const section of aiResponse.sections) {
         const qType = section.type === 'True or False' ? 'true_false'
           : section.type === 'Enumeration' ? 'enumeration'
+          : section.type === 'Essay' ? 'essay'
           : 'multiple_choice';
         for (const q of (section.questions || [])) {
           const qRes = await dbRun(
@@ -143,13 +163,13 @@ async function update(req, res) {
     if (!quiz) return res.status(404).json({ message: 'Not found.' });
     if (quiz.user_id !== req.user.id) return res.status(403).json({ message: 'Forbidden.' });
 
-    const { title, description, ai_response, time_limit, is_published } = req.body;
+    const { title, description, ai_response, time_limit, is_published, show_score } = req.body;
     if (!title) return res.status(422).json({ errors: { title: ['Title is required.'] } });
 
     const newAi = ai_response ? JSON.stringify(ai_response) : quiz.ai_response;
     await dbRun(
-      `UPDATE quizzes SET title=?, description=?, ai_response=?, time_limit=?, is_published=?, updated_at=datetime('now') WHERE id=?`,
-      [title, description ?? quiz.description, newAi, time_limit ?? quiz.time_limit, is_published ?? quiz.is_published, quiz.id]
+      `UPDATE quizzes SET title=?, description=?, ai_response=?, time_limit=?, is_published=?, show_score=?, updated_at=datetime('now') WHERE id=?`,
+      [title, description ?? quiz.description, newAi, time_limit ?? quiz.time_limit, is_published ?? quiz.is_published, show_score ?? quiz.show_score ?? 1, quiz.id]
     );
     const updated = await dbGet('SELECT * FROM quizzes WHERE id = ?', [quiz.id]);
     return res.json({ quiz: parseQuiz(updated), message: 'Assessment updated successfully!' });
@@ -166,8 +186,10 @@ async function publish(req, res) {
     if (!quiz) return res.status(404).json({ message: 'Not found.' });
     if (quiz.user_id !== req.user.id) return res.status(403).json({ message: 'Forbidden.' });
     const newVal = quiz.is_published ? 0 : 1;
-    await dbRun('UPDATE quizzes SET is_published=?, updated_at=datetime("now") WHERE id=?', [newVal, quiz.id]);
-    return res.json({ is_published: newVal });
+    // Generate a share token the first time this quiz is published
+    const shareToken = quiz.share_token || randomUUID();
+    await dbRun('UPDATE quizzes SET is_published=?, share_token=?, updated_at=datetime("now") WHERE id=?', [newVal, shareToken, quiz.id]);
+    return res.json({ is_published: newVal, share_token: shareToken });
   } catch (err) {
     return res.status(500).json({ message: 'Server error.' });
   }
@@ -265,6 +287,16 @@ async function deleteQuestion(req, res) {
 // ── Teacher: analytics ────────────────────────────────
 async function analytics(req, res) {
   try {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      const { data, error } = await supabase.rpc('get_quiz_analytics', {
+        p_quiz_id: req.params.id,
+        p_user_id: req.user.id,
+      });
+      if (error) return res.status(404).json({ message: error.message });
+      return res.json(data);
+    }
+
     const quiz = await dbGet('SELECT * FROM quizzes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
     if (!quiz) return res.status(404).json({ message: 'Not found.' });
 
@@ -307,6 +339,7 @@ async function analytics(req, res) {
         student_id: a.student_id, name: a.name, email: a.email,
         score: a.score, total_correct: a.total_correct,
         time_taken: a.time_taken, submitted_at: a.submitted_at, status: a.status,
+        photo_data: a.photo_data || null,
       })),
     });
   } catch (err) {

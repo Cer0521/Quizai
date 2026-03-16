@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import AppLayout from '../../../components/AppLayout'
 import api from '../../../api'
 
-const TYPE_LABELS = { multiple_choice: 'Multiple Choice', true_false: 'True or False', enumeration: 'Enumeration' }
+const TYPE_LABELS = { multiple_choice: 'Multiple Choice', true_false: 'True or False', enumeration: 'Enumeration', essay: 'Essay' }
 
 export default function EditQuiz() {
   const { id } = useParams()
@@ -114,9 +114,15 @@ export default function EditQuiz() {
                     </div>
                   )}
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Correct Answer</label>
-                    <input value={q.correct_answer} onChange={e => updateQ(qi, 'correct_answer', e.target.value)}
-                      className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:border-red-500" />
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      {q.question_type === 'essay' ? 'Key Points / Model Answer (used by AI for grading)' : 'Correct Answer'}
+                    </label>
+                    {q.question_type === 'essay'
+                      ? <textarea value={q.correct_answer} onChange={e => updateQ(qi, 'correct_answer', e.target.value)} rows={3}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:border-red-500" />
+                      : <input value={q.correct_answer} onChange={e => updateQ(qi, 'correct_answer', e.target.value)}
+                          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:border-red-500" />
+                    }
                   </div>
                   <div className="flex justify-end gap-2 pt-1">
                     <button onClick={() => deleteQuestion(qi)} className="px-3 py-1.5 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50">Delete</button>

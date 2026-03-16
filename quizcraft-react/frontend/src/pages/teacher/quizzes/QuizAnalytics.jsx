@@ -126,8 +126,16 @@ export default function QuizAnalytics() {
                     {filtered.map(s => (
                       <tr key={s.student_id} className="border-b last:border-0 hover:bg-gray-50">
                         <td className="py-3 pr-4">
-                          <p className="font-medium text-gray-800">{s.name}</p>
-                          <p className="text-xs text-gray-400">{s.email}</p>
+                          <div className="flex items-center gap-2.5">
+                            {s.photo_data
+                              ? <img src={s.photo_data} alt={s.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-gray-200" />
+                              : <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-gray-400 text-xs font-bold">{s.name?.[0]?.toUpperCase() || '?'}</div>
+                            }
+                            <div>
+                              <p className="font-medium text-gray-800">{s.name}</p>
+                              <p className="text-xs text-gray-400">{s.email}</p>
+                            </div>
+                          </div>
                         </td>
                         <td className="py-3 pr-4">
                           <span className={`font-bold text-base ${scoreColor(s.score)}`}>{s.score}%</span>

@@ -4,7 +4,7 @@
 
 **An AI-powered quiz platform for teachers and students**
 
-React · Node.js · Express · SQLite · JWT · Tailwind CSS · Recharts · Google Gemini
+React · Node.js · Express · PostgreSQL (Supabase) · JWT · Tailwind CSS · Recharts · Google Gemini
 
 </div>
 
@@ -14,7 +14,7 @@ React · Node.js · Express · SQLite · JWT · Tailwind CSS · Recharts · Goog
 
 QuizCraft AI is a full-stack web application that lets teachers create and assign quizzes — either manually or generated from a document using Google Gemini AI — and allows students to take those quizzes, see their scores, and track their progress over time.
 
-The system uses **role-based authentication**: every user registers as either a Teacher or a Student, and each role has its own dashboard, routes, and permissions.
+The system uses **role-based authentication** with separate teacher and student dashboards, routes, and permissions. Self-registration is currently enabled for teacher accounts only. Data persistence is powered by Supabase PostgreSQL.
 
 ---
 
@@ -27,19 +27,23 @@ The system uses **role-based authentication**: every user registers as either a 
 - Publish / unpublish quizzes (draft mode by default)
 - Assign quizzes to individual students with an optional due date
 - View quiz analytics: completion rate, average score, score distribution chart, per-student results table
+- Optional Supabase analytics payloads (RPC-backed) for dashboard, quizzes, and quiz analytics
 
 ### 👨‍🎓 Student
 - View all quizzes assigned to them with status and due date
 - Take quizzes with a countdown timer (if set), auto-save, and a question navigator
 - Submit and receive an instant score with per-question feedback
 - Review past attempt results and history
+- Visitor-ready quiz access flow (Supabase RPC + Edge Function scaffolding)
 
 ### 🔐 Auth & System
-- Role-based registration (Teacher / Student selector)
+- Teacher self-registration (student self-registration disabled)
 - JWT authentication — token stored in localStorage, attached on every request
 - Email verification and password reset via email
 - In-app notifications (quiz assigned, quiz submitted)
 - Rate limiting on sensitive endpoints
+- Supabase schema + RLS policies + analytics views (optional)
+- Storage policies for quiz documents and student photos (optional)
 
 ---
 
@@ -51,7 +55,7 @@ The system uses **role-based authentication**: every user registers as either a 
 | Styling | Tailwind CSS |
 | Charts | Recharts |
 | Backend | Node.js, Express |
-| Database | SQLite (sqlite3) |
+| Database | PostgreSQL (Supabase) |
 | Authentication | JWT (jsonwebtoken) |
 | Password Hashing | bcryptjs |
 | File Uploads | Multer (PDF/TXT, max 5MB) |
@@ -81,9 +85,10 @@ quizcraft-react/
 │   │   ├── services/
 │   │   │   ├── gemini.js        # Gemini API call + response parsing
 │   │   │   └── mail.js          # password reset and verification emails
-│   │   ├── db.js                # SQLite helpers (dbGet, dbAll, dbRun)
+│   │   │   └── supabase.js       # Optional Supabase client (RPC reads)
+│   │   ├── db.js                # PostgreSQL helpers (dbGet, dbAll, dbRun)
 │   │   ├── index.js             # Express entry point, CORS, rate limiting
-│   │   └── migrate.js           # Creates all 8 database tables
+│   │   └── migrate.js           # Creates all 11 database tables
 │   ├── .env.example
 │   └── package.json
 │
@@ -120,6 +125,18 @@ quizcraft-react/
             │       └── AttemptHistory.jsx # All past attempts
             └── shared/
                 └── Profile.jsx            # Edit name/email, change password, delete account
+
+supabase/
+├── migrations/
+│   ├── 001_init_schema.sql      # Supabase schema + RLS + RPC helpers
+│   ├── 002_analytics_views.sql  # Analytics views and materialized stats
+│   ├── 003_storage_policies.sql # Storage buckets + policies
+│   └── 004_rpc_api.sql          # RPC endpoints for dashboard/quiz/analytics
+└── functions/
+    ├── start-attempt/           # Visitor attempt creation by token
+    ├── save-answer/             # Visitor answer save by token
+    ├── sign-photo-upload/       # Signed upload for student photos
+    └── get-quiz-by-token/        # Load quiz by share token
 ```
 
 ---
@@ -146,6 +163,12 @@ npm install
 cp .env.example .env
 ```
 
+On Windows PowerShell, use:
+
+```powershell
+Copy-Item .env.example .env
+```
+
 Open `.env` and fill in your values (see [Environment Variables](#environment-variables) below), then run the database migration:
 
 ```bash
@@ -170,6 +193,37 @@ npm run dev
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
+### 4. Configure Supabase PostgreSQL
+
+This project uses Supabase PostgreSQL for backend persistence.
+
+1) Create a Supabase project and get:
+- `DATABASE_URL` (or `SUPABASE_DB_URL`) from the project database connection settings
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+2) Apply migrations (Supabase CLI or SQL editor), in order:
+- [supabase/migrations/001_init_schema.sql](supabase/migrations/001_init_schema.sql)
+- [supabase/migrations/002_analytics_views.sql](supabase/migrations/002_analytics_views.sql)
+- [supabase/migrations/003_storage_policies.sql](supabase/migrations/003_storage_policies.sql)
+- [supabase/migrations/004_rpc_api.sql](supabase/migrations/004_rpc_api.sql)
+
+3) Deploy Edge Functions:
+- `start-attempt`
+- `save-answer`
+- `sign-photo-upload`
+- `get-quiz-by-token`
+
+4) Set backend env vars and restart:
+- `DATABASE_URL=postgresql://...`
+- `SUPABASE_DB_URL=` (optional alias)
+- `DB_SSL=true`
+
+5) Optional RPC read mode (if you want Supabase RPC-backed reads in selected endpoints):
+- `USE_SUPABASE=true`
+- `SUPABASE_URL=...`
+- `SUPABASE_SERVICE_ROLE_KEY=...`
+
 ---
 
 ## Environment Variables
@@ -188,8 +242,15 @@ JWT_EXPIRES_IN=7d
 PORT=3001
 APP_URL=http://localhost:5173
 
-# Database
-DB_PATH=./database.sqlite
+# Database (PostgreSQL / Supabase)
+DATABASE_URL=postgresql://postgres:<password>@<project-ref>.supabase.co:6543/postgres
+SUPABASE_DB_URL=
+DB_SSL=true
+
+# Supabase (optional)
+USE_SUPABASE=false
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
 
 # Email (SMTP)
 MAIL_HOST=smtp.example.com
@@ -246,7 +307,7 @@ All endpoints are prefixed with `/api`. Protected routes require an `Authorizati
 #### Quiz Taking — Student only
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/assignments/:id/attempt` | Start or resume attempt |
+| GET | `/api/assignments/:assignmentId/attempt` | Start or resume attempt |
 | PUT | `/api/attempts/:id/answers` | Auto-save answers |
 | POST | `/api/attempts/:id/submit` | Submit and score attempt |
 | GET | `/api/attempts/:id/result` | Get scored result |
@@ -265,10 +326,11 @@ All endpoints are prefixed with `/api`. Protected routes require an `Authorizati
 
 ## Database Schema
 
-8 tables — all created by `npm run migrate`:
+11 tables — all created by `npm run migrate`:
 
 ```
 users               id, name, email, password, role, email_verified_at
+password_reset_tokens
 quizzes             id, user_id (FK), title, description, source_type, file_path,
                     time_limit, total_questions, is_published, sections_config, ai_response
 questions           id, quiz_id (FK), question_text, question_type, correct_answer, order_index
@@ -277,14 +339,22 @@ quiz_assignments    id, quiz_id (FK), student_id (FK), assigned_by (FK), due_dat
 attempts            id, assignment_id (FK), student_id (FK), quiz_id (FK),
                     score, total_correct, time_taken, started_at, submitted_at, status
 answers             id, attempt_id (FK), question_id (FK), selected_option_id, answer_text, is_correct
+guest_attempts      id, quiz_id (FK), attempt_token, student_display_name, score, status
+guest_answers       id, guest_attempt_id (FK), question_id (FK), answer_text, is_correct
 notifications       id, user_id (FK), type, message, is_read
 ```
+
+## Supabase Notes (Optional)
+
+- Supabase RPCs power analytics and teacher dashboard reads when `USE_SUPABASE=true`.
+- Visitor quiz access is scaffolded via Edge Functions and RPCs for token-based flow.
+- Storage policies support quiz documents and student photos with signed uploads.
 
 ---
 
 ## How Quiz Taking Works
 
-1. Student clicks **Start** → `POST /assignments/:id/attempt` creates an attempt with `status = in_progress`
+1. Student clicks **Start** → `GET /api/assignments/:assignmentId/attempt` creates or resumes an attempt with `status = in_progress`
 2. All questions load into `QuizPage` with the question navigator sidebar
 3. Every answer change triggers a **1.5s debounced auto-save** via `PUT /attempts/:id/answers`
 4. If a time limit is set, `QuizTimer` counts down and **auto-submits on expiry** — remaining time is persisted in `sessionStorage` so a page refresh doesn't reset it

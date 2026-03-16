@@ -1,4 +1,5 @@
 const { dbGet, dbAll, dbRun } = require('../db');
+const { gradeAllAnswers } = require('../services/grading');
 
 // ── Student: start or resume attempt ─────────────────
 async function startOrResume(req, res) {
@@ -37,9 +38,27 @@ async function startOrResume(req, res) {
     // Load saved answers
     const savedAnswers = await dbAll('SELECT * FROM answers WHERE attempt_id = ?', [attempt.id]);
 
-    const quiz = await dbGet('SELECT id, title, total_questions, time_limit FROM quizzes WHERE id = ?', [assignment.quiz_id]);
+    const quiz = await dbGet('SELECT id, title, total_questions, time_limit, show_score FROM quizzes WHERE id = ?', [assignment.quiz_id]);
 
     return res.json({ attempt, quiz, questions, savedAnswers });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+}
+
+// ── Student: save photo + display name ───────────────
+async function patchPhoto(req, res) {
+  try {
+    const attempt = await dbGet(
+      "SELECT * FROM attempts WHERE id = ? AND student_id = ? AND status = 'in_progress'",
+      [req.params.id, req.user.id]
+    );
+    if (!attempt) return res.status(404).json({ message: 'Active attempt not found.' });
+    const { student_display_name, photo_data } = req.body;
+    await dbRun('UPDATE attempts SET student_display_name=?, photo_data=? WHERE id=?',
+      [student_display_name || null, photo_data || null, attempt.id]);
+    return res.json({ message: 'Profile saved.' });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
@@ -55,7 +74,7 @@ async function saveAnswers(req, res) {
     );
     if (!attempt) return res.status(404).json({ message: 'Active attempt not found.' });
 
-    const { answers } = req.body; // [{ question_id, answer_text, selected_option_id }]
+    const { answers } = req.body;
     if (!Array.isArray(answers)) return res.status(422).json({ message: 'answers must be an array.' });
 
     for (const ans of answers) {
@@ -87,29 +106,7 @@ async function submit(req, res) {
     const questions = await dbAll('SELECT * FROM questions WHERE quiz_id = ?', [attempt.quiz_id]);
     const answers = await dbAll('SELECT * FROM answers WHERE attempt_id = ?', [attempt.id]);
 
-    let totalCorrect = 0;
-    for (const q of questions) {
-      const ans = answers.find(a => a.question_id === q.id);
-      if (!ans) continue;
-
-      let isCorrect = false;
-      if (q.question_type === 'multiple_choice' || q.question_type === 'true_false') {
-        if (ans.selected_option_id) {
-          const opt = await dbGet('SELECT option_label FROM options WHERE id = ?', [ans.selected_option_id]);
-          isCorrect = opt && opt.option_label.trim().toLowerCase() === q.correct_answer.trim().toLowerCase();
-        }
-        // Also check by text match
-        if (!isCorrect && ans.answer_text) {
-          isCorrect = ans.answer_text.trim().toLowerCase() === q.correct_answer.trim().toLowerCase();
-        }
-      } else {
-        // Enumeration — case-insensitive text match
-        isCorrect = ans.answer_text && ans.answer_text.trim().toLowerCase() === q.correct_answer.trim().toLowerCase();
-      }
-
-      if (isCorrect) totalCorrect++;
-      await dbRun('UPDATE answers SET is_correct = ? WHERE id = ?', [isCorrect ? 1 : 0, ans.id]);
-    }
+    const totalCorrect = await gradeAllAnswers(questions, answers, 'answers');
 
     const score = questions.length ? parseFloat(((totalCorrect / questions.length) * 100).toFixed(2)) : 0;
     const startedAt = new Date(attempt.started_at).getTime();
@@ -121,7 +118,6 @@ async function submit(req, res) {
     );
     await dbRun("UPDATE quiz_assignments SET status='completed' WHERE id=?", [attempt.assignment_id]);
 
-    // Notify teacher
     const quiz = await dbGet('SELECT title, user_id FROM quizzes WHERE id = ?', [attempt.quiz_id]);
     if (quiz) {
       await dbRun('INSERT INTO notifications (user_id, type, message) VALUES (?,?,?)',
@@ -141,7 +137,6 @@ async function getResult(req, res) {
     const attempt = await dbGet("SELECT * FROM attempts WHERE id = ? AND status = 'submitted'", [req.params.id]);
     if (!attempt) return res.status(404).json({ message: 'Result not found.' });
 
-    // Only the student who took it OR the quiz teacher can view
     const quiz = await dbGet('SELECT * FROM quizzes WHERE id = ?', [attempt.quiz_id]);
     if (attempt.student_id !== req.user.id && quiz?.user_id !== req.user.id)
       return res.status(403).json({ message: 'Forbidden.' });
@@ -152,7 +147,11 @@ async function getResult(req, res) {
       q.student_answer = await dbGet('SELECT * FROM answers WHERE attempt_id = ? AND question_id = ?', [attempt.id, q.id]);
     }
 
-    return res.json({ attempt, quiz: { id: quiz.id, title: quiz.title, total_questions: quiz.total_questions }, questions });
+    return res.json({
+      attempt,
+      quiz: { id: quiz.id, title: quiz.title, total_questions: quiz.total_questions, show_score: quiz.show_score ?? 1 },
+      questions,
+    });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
@@ -176,4 +175,4 @@ async function history(req, res) {
   }
 }
 
-module.exports = { startOrResume, saveAnswers, submit, getResult, history };
+module.exports = { startOrResume, patchPhoto, saveAnswers, submit, getResult, history };

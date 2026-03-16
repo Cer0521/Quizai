@@ -4,10 +4,12 @@ const path = require('path');
 const fs = require('fs');
 const { authenticate, requireVerified, requireTeacher, requireStudent } = require('../middleware/auth');
 const quizController = require('../controllers/quiz');
+const dashboardController = require('../controllers/dashboard');
 const profileController = require('../controllers/profile');
 const assignmentController = require('../controllers/assignment');
 const attemptController = require('../controllers/attempt');
 const notificationController = require('../controllers/notification');
+const guestController = require('../controllers/guest');
 
 // ── Multer ─────────────────────────────────────────────
 const storage = multer.diskStorage({
@@ -61,30 +63,20 @@ router.get('/students', ...ta, assignmentController.listStudents);
 // ── Student: quiz taking ───────────────────────────────
 const sa = [authenticate, requireVerified, requireStudent];
 router.get('/assignments/:assignmentId/attempt', ...sa, attemptController.startOrResume);
+router.patch('/attempts/:id/photo', ...sa, attemptController.patchPhoto);
 router.put('/attempts/:id/answers', ...sa, attemptController.saveAnswers);
 router.post('/attempts/:id/submit', ...sa, attemptController.submit);
 router.get('/attempts/history', ...sa, attemptController.history);
 router.get('/attempts/:id/result', authenticate, requireVerified, attemptController.getResult);
 
+// ── Public: guest quiz access (no auth) ───────────────
+router.get('/public/quiz/:token', guestController.getQuizByToken);
+router.post('/public/quiz/:token/start', guestController.startAttempt);
+router.put('/public/attempt/:id/answers', guestController.saveAnswers);
+router.post('/public/attempt/:id/submit', guestController.submitAttempt);
+router.get('/public/attempt/:id/result', guestController.getResult);
+
 // ── Teacher dashboard stats ────────────────────────────
-router.get('/dashboard/stats', ...ta, async (req, res) => {
-  try {
-    const { dbGet } = require('../db');
-    const [totalQuizzes, totalStudents, totalAssignments, avgScore] = await Promise.all([
-      dbGet('SELECT COUNT(*) as c FROM quizzes WHERE user_id = ?', [req.user.id]),
-      dbGet("SELECT COUNT(*) as c FROM users WHERE role = 'student'", []),
-      dbGet('SELECT COUNT(*) as c FROM quiz_assignments qa JOIN quizzes q ON qa.quiz_id = q.id WHERE q.user_id = ?', [req.user.id]),
-      dbGet('SELECT AVG(a.score) as avg FROM attempts a JOIN quizzes q ON a.quiz_id = q.id WHERE q.user_id = ? AND a.status = "submitted"', [req.user.id]),
-    ]);
-    res.json({
-      total_quizzes: totalQuizzes?.c || 0,
-      total_students: totalStudents?.c || 0,
-      total_assignments: totalAssignments?.c || 0,
-      average_score: avgScore?.avg ? parseFloat(avgScore.avg.toFixed(1)) : 0,
-    });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error.' });
-  }
-});
+router.get('/dashboard/stats', ...ta, dashboardController.stats);
 
 module.exports = router;

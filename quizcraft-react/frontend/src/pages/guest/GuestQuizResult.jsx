@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useParams, useLocation, useNavigate, Link } from 'react-router-dom'
-import api from '../../../api'
+import { useParams, useLocation, useSearchParams } from 'react-router-dom'
+import api from '../../api'
 
 function EssayFeedback({ ans }) {
   const [open, setOpen] = useState(false)
@@ -21,16 +21,22 @@ function EssayFeedback({ ans }) {
   )
 }
 
-export default function QuizResult() {
-  const { attemptId } = useParams()
+export default function GuestQuizResult() {
+  const { token, attemptId } = useParams()
+  const [searchParams] = useSearchParams()
+  const attemptToken = searchParams.get('t')
   const { state: navState } = useLocation()
-  const navigate = useNavigate()
+
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    api.get(`/attempts/${attemptId}/result`).then(r => setData(r.data)).finally(() => setLoading(false))
-  }, [attemptId])
+    api.get(`/public/attempt/${attemptId}/result?token=${attemptToken}`)
+      .then(r => setData(r.data))
+      .catch(() => setError('Result not found or token invalid.'))
+      .finally(() => setLoading(false))
+  }, [attemptId, attemptToken])
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -38,11 +44,18 @@ export default function QuizResult() {
     </div>
   )
 
-  if (!data) return null
+  if (error || !data) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="text-center">
+        <p className="text-5xl mb-4">😔</p>
+        <p className="text-gray-500 text-sm">{error || 'Could not load result.'}</p>
+      </div>
+    </div>
+  )
+
   const { attempt, quiz, questions } = data
   const showScore = quiz.show_score !== 0
 
-  // If teacher disabled score display
   if (!showScore) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
@@ -50,9 +63,6 @@ export default function QuizResult() {
           <p className="text-5xl mb-4">✅</p>
           <h2 className="text-xl font-bold text-gray-800 mb-2">Quiz Submitted!</h2>
           <p className="text-gray-500 text-sm">Your answers have been recorded. Your teacher will share your results.</p>
-          <Link to="/student/dashboard" className="mt-6 inline-block px-6 py-2.5 bg-gray-800 text-white text-sm font-bold rounded-lg hover:bg-gray-700 transition">
-            ← Back to Dashboard
-          </Link>
         </div>
       </div>
     )
@@ -77,6 +87,7 @@ export default function QuizResult() {
           <p className={`text-6xl font-extrabold ${grade.color} mt-2`}>{score}%</p>
           <p className="text-gray-500 mt-2 text-sm">{attempt.total_correct} out of {quiz.total_questions} correct</p>
           <p className="text-gray-400 text-xs mt-1">Time: {timeTaken}</p>
+          <p className="text-gray-500 text-sm mt-2 font-medium">{attempt.student_display_name}</p>
         </div>
 
         {/* Per-question breakdown */}
@@ -88,7 +99,6 @@ export default function QuizResult() {
               const correct = ans?.is_correct === 1
               const isEssay = q.question_type === 'essay'
 
-              // Resolve MC answer text: use option text if we only have selected_option_id
               let displayAnswer = ans?.answer_text
               if (!displayAnswer && ans?.selected_option_id) {
                 const opt = q.options?.find(o => o.id === ans.selected_option_id)
@@ -122,11 +132,6 @@ export default function QuizResult() {
               )
             })}
           </div>
-        </div>
-
-        <div className="flex justify-between">
-          <Link to="/student/dashboard" className="px-5 py-2.5 border border-gray-300 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 transition">← Dashboard</Link>
-          <Link to="/student/history" className="px-5 py-2.5 bg-gray-800 text-white text-sm font-bold rounded-lg hover:bg-gray-700 transition">View History</Link>
         </div>
       </div>
     </div>

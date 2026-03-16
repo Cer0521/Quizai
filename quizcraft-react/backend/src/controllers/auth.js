@@ -20,8 +20,10 @@ async function register(req, res) {
     if (password.length < 8)
       return res.status(422).json({ errors: { password: ['Password must be at least 8 characters.'] } });
 
-    const validRoles = ['teacher', 'student'];
-    const userRole = validRoles.includes(role) ? role : 'student';
+    if (role && role !== 'teacher') {
+      return res.status(422).json({ errors: { role: ['Student self-registration is disabled.'] } });
+    }
+    const userRole = 'teacher';
 
     const existing = await dbGet('SELECT id FROM users WHERE email = ?', [email]);
     if (existing)
@@ -35,7 +37,10 @@ async function register(req, res) {
       [name, email, hashed, userRole]
     );
 
-    await dbRun('INSERT OR REPLACE INTO password_reset_tokens (email, token) VALUES (?, ?)', [email, verifyToken]);
+    await dbRun(
+      'INSERT INTO password_reset_tokens (email, token) VALUES (?, ?) ON CONFLICT (email) DO UPDATE SET token = EXCLUDED.token, created_at = NOW()',
+      [email, verifyToken]
+    );
 
     const user = await dbGet('SELECT id, name, email, role, email_verified_at FROM users WHERE id = ?', [result.lastID]);
 
@@ -78,7 +83,10 @@ async function forgotPassword(req, res) {
     const user = await dbGet('SELECT id FROM users WHERE email = ?', [email]);
     if (user) {
       const token = uuidv4();
-      await dbRun('INSERT OR REPLACE INTO password_reset_tokens (email, token) VALUES (?, ?)', [email, token]);
+      await dbRun(
+        'INSERT INTO password_reset_tokens (email, token) VALUES (?, ?) ON CONFLICT (email) DO UPDATE SET token = EXCLUDED.token, created_at = NOW()',
+        [email, token]
+      );
       try { await sendPasswordResetEmail(email, token); } catch (e) { console.error(e.message); }
     }
     return res.json({ status: 'We have emailed your password reset link.' });
@@ -121,7 +129,10 @@ async function resendVerification(req, res) {
     const user = req.user;
     if (user.email_verified_at) return res.json({ status: 'Email already verified.' });
     const token = uuidv4();
-    await dbRun('INSERT OR REPLACE INTO password_reset_tokens (email, token) VALUES (?, ?)', [user.email, token]);
+    await dbRun(
+      'INSERT INTO password_reset_tokens (email, token) VALUES (?, ?) ON CONFLICT (email) DO UPDATE SET token = EXCLUDED.token, created_at = NOW()',
+      [user.email, token]
+    );
     try { await sendVerificationEmail(user.email, token); } catch (e) { console.error(e.message); }
     return res.json({ status: 'Verification link sent.' });
   } catch (err) { return res.status(500).json({ message: 'Server error.' }); }

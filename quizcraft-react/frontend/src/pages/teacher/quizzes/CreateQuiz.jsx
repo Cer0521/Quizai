@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import AppLayout from '../../../components/AppLayout'
 import api from '../../../api'
 
-const TYPES = ['multiple_choice', 'true_false', 'enumeration']
-const TYPE_LABELS = { multiple_choice: 'Multiple Choice', true_false: 'True or False', enumeration: 'Enumeration' }
+const TYPES = ['multiple_choice', 'true_false', 'enumeration', 'essay']
+const TYPE_LABELS = { multiple_choice: 'Multiple Choice', true_false: 'True or False', enumeration: 'Enumeration', essay: 'Essay' }
 
 function emptyQuestion() {
   return { question_text: '', question_type: 'multiple_choice', correct_answer: '', options: ['', '', '', ''] }
@@ -102,7 +102,9 @@ export default function CreateQuiz() {
                   </div>
                 )}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Correct Answer</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    {q.question_type === 'essay' ? 'Key Points / Model Answer (used by AI for grading)' : 'Correct Answer'}
+                  </label>
                   {q.question_type === 'true_false'
                     ? <select value={q.correct_answer} onChange={e => updateQ(qi, 'correct_answer', e.target.value)}
                         className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:border-red-500">
@@ -115,6 +117,10 @@ export default function CreateQuiz() {
                         <option value="">Select correct option...</option>
                         {['A','B','C','D'].map(l => <option key={l} value={l}>{l}</option>)}
                       </select>
+                    : q.question_type === 'essay'
+                    ? <textarea value={q.correct_answer} onChange={e => updateQ(qi, 'correct_answer', e.target.value)}
+                        placeholder="Describe key points the AI should look for when grading..." rows={3}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:border-red-500 resize-y" />
                     : <input value={q.correct_answer} onChange={e => updateQ(qi, 'correct_answer', e.target.value)}
                         placeholder="Type correct answer..."
                         className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:border-red-500" />
