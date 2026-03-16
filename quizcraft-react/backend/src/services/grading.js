@@ -87,4 +87,78 @@ Return your response as a JSON object with this exact format:
   }
 }
 
-module.exports = { gradeEssay };
+/**
+ * Grade an enumeration question using AI
+ * @param {string} question - The question text
+ * @param {string} correctAnswers - The list of expected answers or criteria
+ * @param {string} studentAnswers - The student's list of answers
+ * @param {number} maxPoints - Maximum points for this question
+ * @returns {Promise<{score: number, feedback: string}>}
+ */
+async function gradeEnumeration(question, correctAnswers, studentAnswers, maxPoints = 1) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
+
+  const prompt = `You are an expert educator grading enumeration questions. Grade the following enumeration answer.
+
+QUESTION:
+${question}
+
+EXPECTED ANSWERS/CRITERIA:
+${correctAnswers || 'Evaluate based on completeness and accuracy.'}
+
+STUDENT'S ANSWERS:
+${studentAnswers}
+
+MAXIMUM POINTS: ${maxPoints}
+
+Please evaluate the student's list of answers and provide:
+1. A score from 0 to ${maxPoints} (partial credit for partial correctness)
+2. Detailed feedback explaining which items were correct, which were missing, and suggestions for improvement
+
+Return your response as a JSON object with this exact format:
+{
+  "score": <number between 0 and ${maxPoints}>,
+  "feedback": "<detailed feedback string>"
+}`;
+
+  const response = await fetch(`${BASE_URL}?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      generationConfig: {
+        temperature: 0.3,
+        responseMimeType: 'application/json',
+      },
+      contents: [{
+        parts: [{ text: prompt }]
+      }]
+    }),
+    signal: AbortSignal.timeout(30000)
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body?.error?.message || `AI service error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!aiText) {
+    throw new Error('AI returned empty response');
+  }
+
+  try {
+    const result = JSON.parse(extractJson(aiText));
+    return {
+      score: Math.min(Math.max(0, Number(result.score) || 0), maxPoints),
+      feedback: result.feedback || 'No feedback provided.'
+    };
+  } catch {
+    console.error('Failed to parse AI grading response:', aiText);
+    throw new Error('Failed to parse AI grading response');
+  }
+}
+
+module.exports = { gradeEssay, gradeEnumeration };

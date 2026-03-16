@@ -1,0 +1,265 @@
+/* Guest Quiz Result Styles */
+.result-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 2rem;
+  color: #333;
+}
+
+.score-card {
+  display: flex;
+  gap: 3rem;
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.score-card.passed {
+  border-left: 8px solid #4CAF50;
+}
+
+.score-card.failed {
+  border-left: 8px solid #ff4c4c;
+}
+
+.score-circle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  flex-shrink: 0;
+}
+
+.percentage {
+  font-size: 3rem;
+  font-weight: bold;
+}
+
+.score-text {
+  font-size: 1.2rem;
+  margin-top: 0.5rem;
+}
+
+.score-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.score-details p {
+  margin: 0.5rem 0;
+  font-size: 1rem;
+}
+
+.score-details strong {
+  color: #667eea;
+}
+
+.answers-section {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.answers-section h2 {
+  margin-bottom: 1.5rem;
+  color: #333;
+}
+
+.answer-item {
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+  transition: all 0.3s;
+}
+
+.answer-item.correct {
+  border-color: #4CAF50;
+  background: rgba(76, 175, 80, 0.05);
+}
+
+.answer-item.incorrect {
+  border-color: #ff4c4c;
+  background: rgba(255, 76, 76, 0.05);
+}
+
+.answer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.02);
+  transition: background 0.3s;
+}
+
+.answer-header:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.answer-status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.question-number {
+  font-weight: bold;
+  color: #667eea;
+  min-width: 40px;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: white;
+}
+
+.status-badge.correct {
+  background: #4CAF50;
+}
+
+.status-badge.incorrect {
+  background: #ff4c4c;
+}
+
+.answer-points {
+  color: #999;
+  font-weight: bold;
+}
+
+.answer-details {
+  padding: 1.5rem;
+  background: white;
+  border-top: 2px solid #e0e0e0;
+}
+
+.question-text,
+.student-answer,
+.correct-answer,
+.explanation,
+.ai-feedback {
+  margin-bottom: 1rem;
+}
+
+.question-text strong,
+.student-answer strong,
+.correct-answer strong,
+.explanation strong,
+.ai-feedback strong {
+  color: #667eea;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.question-text p,
+.student-answer p,
+.correct-answer p,
+.explanation p,
+.ai-feedback p {
+  margin: 0;
+  line-height: 1.6;
+  color: #555;
+}
+
+.ai-feedback {
+  background: rgba(102, 126, 234, 0.1);
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.result-footer {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.back-button,
+.retake-button {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.3s;
+}
+
+.back-button {
+  background: white;
+  color: #667eea;
+  border: 2px solid white;
+}
+
+.back-button:hover {
+  background: transparent;
+  color: white;
+}
+
+.retake-button {
+  background: #4CAF50;
+  color: white;
+  border: 2px solid #4CAF50;
+}
+
+.retake-button:hover {
+  background: #45a049;
+  border-color: #45a049;
+}
+
+@media (max-width: 768px) {
+  .result-container {
+    padding: 1rem;
+  }
+
+  .score-card {
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 1.5rem;
+  }
+
+  .score-circle {
+    width: 120px;
+    height: 120px;
+  }
+
+  .percentage {
+    font-size: 2.5rem;
+  }
+
+  .answers-section {
+    padding: 1rem;
+  }
+
+  .result-footer {
+    flex-direction: column;
+  }
+
+  .back-button,
+  .retake-button {
+    width: 100%;
+  }
+}

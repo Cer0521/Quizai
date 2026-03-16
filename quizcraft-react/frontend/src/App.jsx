@@ -23,6 +23,12 @@ import AttemptHistory from './pages/student/history/AttemptHistory'
 
 import Profile from './pages/shared/Profile'
 
+import QuizLanding from './pages/guest/QuizLanding'
+import GuestStart from './pages/guest/GuestStart'
+import GuestQuizPage from './pages/guest/GuestQuizPage'
+import GuestQuizResult from './pages/guest/GuestQuizResult'
+import Pricing from './pages/shared/Pricing'
+
 const Spinner = () => (
   <div className="min-h-screen flex items-center justify-center">
     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600" />
@@ -86,6 +92,13 @@ export default function App() {
 
       {/* Shared */}
       <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
+      <Route path="/pricing" element={<Pricing />} />
+
+      {/* Guest quiz routes */}
+      <Route path="/guest/quiz/:shareCode" element={<RequireGuest><QuizLanding /></RequireGuest>} />
+      <Route path="/guest/start/:shareCode" element={<RequireGuest><GuestStart /></RequireGuest>} />
+      <Route path="/guest/quiz/:attemptId/take" element={<RequireGuest><GuestQuizPage /></RequireGuest>} />
+      <Route path="/guest/result/:attemptId" element={<RequireGuest><GuestQuizResult /></RequireGuest>} />
 
       {/* Legacy redirects */}
       <Route path="/dashboard" element={<RequireAuth><RoleDashboard /></RequireAuth>} />

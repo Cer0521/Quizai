@@ -43,6 +43,41 @@ router.post('/subscription/referral', authenticate, subscriptionController.apply
 router.get('/subscription/referral-stats', authenticate, subscriptionController.getReferralStats);
 router.get('/subscription/limits', authenticate, subscriptionController.checkLimits);
 
+// ── AI Grading ─────────────────────────────────────────
+router.post('/grading/grade-essay', authenticate, async (req, res) => {
+  try {
+    const { question, correctAnswer, studentAnswer, maxPoints } = req.body;
+    const { gradeEssay } = require('../services/grading');
+    
+    if (!question || !studentAnswer) {
+      return res.status(400).json({ message: 'Question and student answer are required.' });
+    }
+
+    const result = await gradeEssay(question, correctAnswer, studentAnswer, maxPoints || 1);
+    res.json(result);
+  } catch (err) {
+    console.error('Grading error:', err);
+    res.status(500).json({ message: err.message || 'Grading failed.' });
+  }
+});
+
+router.post('/grading/grade-enumeration', authenticate, async (req, res) => {
+  try {
+    const { question, correctAnswers, studentAnswers, maxPoints } = req.body;
+    const { gradeEnumeration } = require('../services/grading');
+    
+    if (!question || !studentAnswers) {
+      return res.status(400).json({ message: 'Question and student answers are required.' });
+    }
+
+    const result = await gradeEnumeration(question, correctAnswers, studentAnswers, maxPoints || 1);
+    res.json(result);
+  } catch (err) {
+    console.error('Grading error:', err);
+    res.status(500).json({ message: err.message || 'Grading failed.' });
+  }
+});
+
 // ── Teacher: quiz management ───────────────────────────
 const ta = [authenticate, requireVerified, requireTeacher];
 router.get('/quizzes', authenticate, requireVerified, quizController.index);
