@@ -68,6 +68,20 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: err.message || 'Internal server error.' });
 });
 
-app.listen(PORT, () => {
-  console.log(`QuizCraft API running on http://localhost:${PORT}`);
+ // Auto-run database migration on startup
+ (async () => {
+   try {
+     console.log('Checking database schema...');
+     const migrate = require('./migrate');
+     await migrate();
+     console.log('Database schema ready');
+   } catch (err) {
+     console.error('Migration warning (schema may already exist):', err.message);
+     // Don't fail startup if migration fails - schema might already exist
+   }
+   
+   app.listen(PORT, () => {
+     console.log(`QuizCraft API running on http://localhost:${PORT}`);
+   });
+ })();
 });
