@@ -1,14 +1,20 @@
 import axios from 'axios'
 
 const getBaseURL = () => {
-  // In production (Vercel), use the environment variable
+  // In production (Vercel), use the environment variable if set.
   const envUrl = import.meta.env.VITE_API_URL
   if (envUrl) {
     const normalized = envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl
     if (normalized.endsWith('/api')) return normalized
     return `${normalized}/api`
   }
-  // In development or if env var not set, use relative path (with Vite proxy)
+
+  // Safety fallback for production deploys where VITE_API_URL was not injected.
+  if (import.meta.env.PROD) {
+    return 'https://quizai-1-ydi0.onrender.com/api'
+  }
+
+  // In local development, use relative path (with Vite proxy)
   return '/api'
 }
 
