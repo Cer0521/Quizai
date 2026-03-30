@@ -28,14 +28,19 @@ function dnsLookup(hostname, options, callback) {
 
   if (family === 4) return tryIPv4();
   
-  // For other hosts, try IPv6 first with short timeout, then fall back to IPv4
+  // For other hosts, try IPv6 first with SHORT timeout, then fall back to IPv4
+  let ipv6Resolved = false;
   const ipv6Timeout = setTimeout(() => {
-    resolver.removeAllListeners();
-    tryIPv4();
-  }, 3000);
+    if (!ipv6Resolved) {
+      ipv6Resolved = true;
+      tryIPv4();
+    }
+  }, 1000);  // 1 second timeout for IPv6
   
   resolver.resolve6(hostname, (err6, addrs6) => {
+    if (ipv6Resolved) return;
     clearTimeout(ipv6Timeout);
+    ipv6Resolved = true;
     if (!err6 && addrs6?.length) return done(null, addrs6[0], 6);
     tryIPv4();
   });
@@ -65,6 +70,8 @@ function getDb() {
       connectionString: DATABASE_URL,
       ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
       lookup: dnsLookup,
+      family: 4,  // Force IPv4 only
+      idleTimeoutMillis: 5000,
     });
   }
   return pool;

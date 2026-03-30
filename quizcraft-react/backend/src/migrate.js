@@ -2,7 +2,8 @@ require('dotenv').config();
 const { Pool } = require('pg');
 const dns = require('dns');
 
-const DATABASE_URL = process.env.DATABASE_URL || process.env.DIRECT_URL || process.env.SUPABASE_DB_URL;
+// Try direct connection first (better for migrations), fall back to pooler
+const DATABASE_URL = process.env.DIRECT_URL || process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
 
 if (!DATABASE_URL) {
   console.error('Missing DIRECT_URL or DATABASE_URL (or SUPABASE_DB_URL) in environment.');
@@ -19,35 +20,57 @@ resolver.setServers((process.env.DB_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',')
 
 function dnsLookup(hostname, options, callback) {
   const family = typeof options === 'object' && options?.family ? options.family : 0;
+  console.log(`[DNS] Resolving ${hostname} (family: ${family})`);
 
   const done = (err, address, fam) => {
-    if (err) return callback(err);
+    if (err) {
+      console.log(`[DNS] ${hostname} → ERROR: ${err.message}`);
+      return callback(err);
+    }
+    console.log(`[DNS] ${hostname} → ${address} (IPv${fam})`);
     callback(null, address, fam);
   };
 
   const tryIPv4 = () => {
+    console.log(`[DNS] Trying IPv4 for ${hostname}...`);
     resolver.resolve4(hostname, (err4, addrs4) => {
-      if (err4 || !addrs4?.length) return done(err4 || new Error(`DNS resolve failed for ${hostname}`));
+      if (err4 || !addrs4?.length) {
+        console.log(`[DNS] IPv4 failed for ${hostname}: ${err4?.message || 'no addresses'}`);
+        return done(err4 || new Error(`DNS resolve failed for ${hostname}`));
+      }
+      console.log(`[DNS] IPv4 resolved ${hostname} to ${addrs4[0]}`);
       done(null, addrs4[0], 4);
     });
   };
 
   // For Supabase, always prefer IPv4 to avoid IPv6 timeouts
   if (hostname.includes('supabase.com')) {
+    console.log(`[DNS] Supabase host detected, forcing IPv4`);
     return tryIPv4();
   }
 
   if (family === 4) return tryIPv4();
   
-  // For other hosts, try IPv6 first with short timeout, then fall back to IPv4
+  // For other hosts, try IPv6 first with SHORT timeout, then fall back to IPv4
+  console.log(`[DNS] Trying IPv6 first for ${hostname} (timeout 1s)...`);
+  let ipv6Resolved = false;
   const ipv6Timeout = setTimeout(() => {
-    resolver.removeAllListeners();
-    tryIPv4();
-  }, 3000);
+    if (!ipv6Resolved) {
+      console.log(`[DNS] IPv6 timeout for ${hostname}, falling back to IPv4`);
+      ipv6Resolved = true;
+      tryIPv4();
+    }
+  }, 1000);  // 1 second timeout for IPv6
   
   resolver.resolve6(hostname, (err6, addrs6) => {
+    if (ipv6Resolved) return;
     clearTimeout(ipv6Timeout);
-    if (!err6 && addrs6?.length) return done(null, addrs6[0], 6);
+    ipv6Resolved = true;
+    if (!err6 && addrs6?.length) {
+      console.log(`[DNS] IPv6 resolved ${hostname} to ${addrs6[0]}`);
+      return done(null, addrs6[0], 6);
+    }
+    console.log(`[DNS] IPv6 failed for ${hostname}, trying IPv4`);
     tryIPv4();
   });
 }
@@ -56,6 +79,7 @@ const pool = new Pool({
   connectionString: DATABASE_URL,
   ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
   lookup: dnsLookup,
+  family: 4,  // Force IPv4 only
 });
 
 async function run(sql, label) {
