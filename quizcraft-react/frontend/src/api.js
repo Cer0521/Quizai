@@ -4,7 +4,9 @@ const getBaseURL = () => {
   // In production (Vercel), use the environment variable
   const envUrl = import.meta.env.VITE_API_URL
   if (envUrl) {
-    return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl
+    const normalized = envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl
+    if (normalized.endsWith('/api')) return normalized
+    return `${normalized}/api`
   }
   // In development or if env var not set, use relative path (with Vite proxy)
   return '/api'
