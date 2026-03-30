@@ -21,8 +21,21 @@ function dnsLookup(hostname, options, callback) {
     });
   };
 
+  // For Supabase, always prefer IPv4 to avoid IPv6 timeouts
+  if (hostname.includes('supabase.com')) {
+    return tryIPv4();
+  }
+
   if (family === 4) return tryIPv4();
+  
+  // For other hosts, try IPv6 first with short timeout, then fall back to IPv4
+  const ipv6Timeout = setTimeout(() => {
+    resolver.removeAllListeners();
+    tryIPv4();
+  }, 3000);
+  
   resolver.resolve6(hostname, (err6, addrs6) => {
+    clearTimeout(ipv6Timeout);
     if (!err6 && addrs6?.length) return done(null, addrs6[0], 6);
     tryIPv4();
   });
