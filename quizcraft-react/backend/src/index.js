@@ -10,9 +10,34 @@ const apiRoutes = require('./routes/api');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+function parseAllowedOrigins() {
+  const raw = process.env.APP_URL || 'http://localhost:5173';
+  return raw.split(',').map(v => v.trim()).filter(Boolean);
+}
+
+function isAllowedOrigin(origin, allowedOrigins) {
+  if (!origin) return true; // non-browser clients
+  if (allowedOrigins.includes(origin)) return true;
+  if (/^http:\/\/localhost:\d+$/i.test(origin) || /^https?:\/\/127\.0\.0\.1:\d+$/i.test(origin)) return true;
+
+  try {
+    const hostname = new URL(origin).hostname;
+    if (hostname.endsWith('.vercel.app')) return true;
+  } catch {
+    return false;
+  }
+
+  return false;
+}
+
+const allowedOrigins = parseAllowedOrigins();
+
 // Security / middleware
 app.use(cors({
-  origin: process.env.APP_URL || 'http://localhost:5173',
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin, allowedOrigins)) return callback(null, true);
+    return callback(new Error('CORS origin not allowed'));
+  },
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
