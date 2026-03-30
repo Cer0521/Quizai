@@ -282,11 +282,17 @@ async function migrate() {
   console.log('\n\u2705 PostgreSQL migration complete!');
 }
 
-migrate()
-  .catch((e) => {
+module.exports = async function runMigration() {
+  try {
+    await migrate();
+  } finally {
+    await pool.end();
+  }
+};
+
+if (require.main === module) {
+  module.exports().catch((e) => {
     console.error(e);
     process.exitCode = 1;
-  })
-  .finally(async () => {
-    await pool.end();
   });
+}

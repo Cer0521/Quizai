@@ -6,6 +6,7 @@ const path = require('path');
 
 const authRoutes = require('./routes/auth');
 const apiRoutes = require('./routes/api');
+const runMigration = require('./migrate');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -68,20 +69,18 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: err.message || 'Internal server error.' });
 });
 
- // Auto-run database migration on startup
- (async () => {
-   try {
-     console.log('Checking database schema...');
-     const migrate = require('./migrate');
-     await migrate();
-     console.log('Database schema ready');
-   } catch (err) {
-     console.error('Migration warning (schema may already exist):', err.message);
-     // Don't fail startup if migration fails - schema might already exist
-   }
-   
-   app.listen(PORT, () => {
-     console.log(`QuizCraft API running on http://localhost:${PORT}`);
-   });
- })();
-});
+// Auto-run database migration on startup
+(async () => {
+  try {
+    console.log('Checking database schema...');
+    await runMigration();
+    console.log('Database schema ready');
+  } catch (err) {
+    console.error('Migration warning (schema may already exist):', err.message);
+    // Keep server startup resilient even if migration fails.
+  }
+
+  app.listen(PORT, () => {
+    console.log(`QuizCraft API running on http://localhost:${PORT}`);
+  });
+})();
