@@ -18,7 +18,15 @@ export default function Register() {
       await register(form.name, form.email, form.password, form.password_confirmation)
       navigate('/teacher/dashboard')
     } catch (err) {
-      setErrors(err.response?.data?.errors || { general: ['Something went wrong.'] })
+      if (err.response?.data?.errors) {
+        setErrors(err.response.data.errors)
+      } else if (err.response?.data?.message) {
+        setErrors({ general: [err.response.data.message] })
+      } else if (!err.response) {
+        setErrors({ general: ['Cannot connect to server. Please check backend deployment.'] })
+      } else {
+        setErrors({ general: ['Something went wrong. Please try again.'] })
+      }
     } finally {
       setSubmitting(false)
     }

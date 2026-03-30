@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: quizcraft-backend
+    runtime: node
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: APP_URL
+        description: "Frontend URL from Vercel (e.g., https://your-frontend.vercel.app)"
+      - key: JWT_SECRET
+        description: "Long random string for JWT secrets"
+        sync: false
+      - key: DATABASE_URL
+        description: "Supabase PostgreSQL connection URL"
+        sync: false
+      - key: DIRECT_URL
+        description: "Direct Supabase DB connection for migrations"
+        sync: false
+      - key: GEMINI_API_KEY
+        description: "Google Gemini API key"
+        sync: false
+      - key: DB_SSL
+        value: "true"
+      - key: MAX_FILE_SIZE
+        value: "5242880"

@@ -12,6 +12,25 @@ function generateToken(user) {
   );
 }
 
+function handleAuthError(res, scope, err) {
+  console.error(`${scope} error:`, err);
+
+  const msg = (err?.message || '').toString();
+  if (msg.includes('Tenant or user not found')) {
+    return res.status(503).json({
+      errors: { general: ['Database auth failed. Check Supabase DATABASE_URL credentials on Render.'] },
+    });
+  }
+
+  if (msg.includes('ETIMEDOUT') || msg.includes('ENOTFOUND') || msg.includes('ECONNREFUSED')) {
+    return res.status(503).json({
+      errors: { general: ['Database is unreachable right now. Please try again shortly.'] },
+    });
+  }
+
+  return res.status(500).json({ errors: { general: ['Server error. Please try again.'] } });
+}
+
 async function register(req, res) {
   try {
     const { name, email, password, role } = req.body;
@@ -48,8 +67,7 @@ async function register(req, res) {
 
     return res.status(201).json({ token: generateToken(user), user });
   } catch (err) {
-    console.error('Register error:', err);
-    return res.status(500).json({ message: 'Server error.' });
+    return handleAuthError(res, 'Register', err);
   }
 }
 
@@ -68,8 +86,7 @@ async function login(req, res) {
     const { password: _pw, ...safeUser } = user;
     return res.json({ token: generateToken(safeUser), user: safeUser });
   } catch (err) {
-    console.error('Login error:', err);
-    return res.status(500).json({ message: 'Server error.' });
+    return handleAuthError(res, 'Login', err);
   }
 }
 
@@ -90,7 +107,7 @@ async function forgotPassword(req, res) {
       try { await sendPasswordResetEmail(email, token); } catch (e) { console.error(e.message); }
     }
     return res.json({ status: 'We have emailed your password reset link.' });
-  } catch (err) { return res.status(500).json({ message: 'Server error.' }); }
+  } catch (err) { return handleAuthError(res, 'Forgot password', err); }
 }
 
 async function resetPassword(req, res) {
@@ -109,7 +126,7 @@ async function resetPassword(req, res) {
     await dbRun('UPDATE users SET password = ?, updated_at = datetime("now") WHERE email = ?', [await bcrypt.hash(password, 12), email]);
     await dbRun('DELETE FROM password_reset_tokens WHERE email = ?', [email]);
     return res.json({ status: 'Your password has been reset.' });
-  } catch (err) { return res.status(500).json({ message: 'Server error.' }); }
+  } catch (err) { return handleAuthError(res, 'Reset password', err); }
 }
 
 async function verifyEmail(req, res) {
@@ -121,7 +138,7 @@ async function verifyEmail(req, res) {
     await dbRun('UPDATE users SET email_verified_at = datetime("now"), updated_at = datetime("now") WHERE email = ?', [email]);
     await dbRun('DELETE FROM password_reset_tokens WHERE email = ?', [email]);
     return res.json({ status: 'Email verified successfully.' });
-  } catch (err) { return res.status(500).json({ message: 'Server error.' }); }
+  } catch (err) { return handleAuthError(res, 'Verify email', err); }
 }
 
 async function resendVerification(req, res) {
@@ -135,7 +152,7 @@ async function resendVerification(req, res) {
     );
     try { await sendVerificationEmail(user.email, token); } catch (e) { console.error(e.message); }
     return res.json({ status: 'Verification link sent.' });
-  } catch (err) { return res.status(500).json({ message: 'Server error.' }); }
+  } catch (err) { return handleAuthError(res, 'Resend verification', err); }
 }
 
 module.exports = { register, login, logout, getUser, forgotPassword, resetPassword, verifyEmail, resendVerification };

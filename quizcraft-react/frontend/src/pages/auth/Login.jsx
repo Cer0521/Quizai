@@ -21,14 +21,18 @@ export default function Login() {
     } catch (err) {
       console.error('Login error:', err)
       // Better error handling
-      if (err.response?.status === 500) {
+      if (err.response?.data?.errors) {
+        setErrors(err.response.data.errors)
+      } else if (err.response?.data?.message) {
+        setErrors({ general: [err.response.data.message] })
+      } else if (err.response?.status === 500) {
         setErrors({ general: ['Server error. Please check if the backend is running and database is connected.'] })
       } else if (err.response?.status === 422) {
         setErrors(err.response.data.errors || { general: ['Invalid credentials.'] })
       } else if (!err.response) {
         setErrors({ general: ['Cannot connect to server. Please check if the backend is running.'] })
       } else {
-        setErrors(err.response?.data?.errors || { general: ['Something went wrong. Please try again.'] })
+        setErrors({ general: ['Something went wrong. Please try again.'] })
       }
     } finally {
       setSubmitting(false)
