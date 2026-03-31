@@ -11,6 +11,17 @@ if (process.env.DB_SSL !== 'false') {
 
 const DATABASE_URL = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
 
+function normalizeDatabaseUrl(rawUrl) {
+  const parsed = new URL(rawUrl);
+  // Let pg Pool ssl config control TLS behavior; strip URL SSL flags that can override it.
+  parsed.searchParams.delete('sslmode');
+  parsed.searchParams.delete('sslcert');
+  parsed.searchParams.delete('sslkey');
+  parsed.searchParams.delete('sslrootcert');
+  parsed.searchParams.delete('sslcrl');
+  return parsed.toString();
+}
+
 const resolver = new dns.Resolver();
 resolver.setServers((process.env.DB_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',').map(s => s.trim()).filter(Boolean));
 
@@ -74,14 +85,15 @@ function getDb() {
   }
 
   if (!pool) {
+    const normalizedUrl = normalizeDatabaseUrl(DATABASE_URL);
     // SSL config - certificate validation disabled at Node level via NODE_TLS_REJECT_UNAUTHORIZED
     const sslConfig = process.env.DB_SSL === 'false' ? false : {
       rejectUnauthorized: false,
-      servername: new URL(DATABASE_URL).hostname, // Enable SNI
+      servername: new URL(normalizedUrl).hostname, // Enable SNI
     };
 
     pool = new Pool({
-      connectionString: DATABASE_URL,
+      connectionString: normalizedUrl,
       ssl: sslConfig,
       lookup: dnsLookup,
       family: 4,  // Force IPv4 only

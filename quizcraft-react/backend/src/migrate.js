@@ -11,6 +11,17 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 // Try direct connection first (better for migrations), fall back to pooler
 const DATABASE_URL = process.env.DIRECT_URL || process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
 
+function normalizeDatabaseUrl(rawUrl) {
+  const parsed = new URL(rawUrl);
+  // Let pg Pool ssl config control TLS behavior; strip URL SSL flags that can override it.
+  parsed.searchParams.delete('sslmode');
+  parsed.searchParams.delete('sslcert');
+  parsed.searchParams.delete('sslkey');
+  parsed.searchParams.delete('sslrootcert');
+  parsed.searchParams.delete('sslcrl');
+  return parsed.toString();
+}
+
 if (!DATABASE_URL) {
   console.error('Missing DIRECT_URL or DATABASE_URL (or SUPABASE_DB_URL) in environment.');
   process.exit(1);
@@ -81,11 +92,13 @@ function dnsLookup(hostname, options, callback) {
   });
 }
 
+const NORMALIZED_DATABASE_URL = normalizeDatabaseUrl(DATABASE_URL);
+
 const pool = new Pool({
-  connectionString: DATABASE_URL,
+  connectionString: NORMALIZED_DATABASE_URL,
   ssl: process.env.DB_SSL === 'false' ? false : {
     rejectUnauthorized: false,
-    servername: new URL(DATABASE_URL).hostname, // Enable SNI
+    servername: new URL(NORMALIZED_DATABASE_URL).hostname, // Enable SNI
   },
   lookup: dnsLookup,
   family: 4,  // Force IPv4 only
