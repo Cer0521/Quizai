@@ -5,6 +5,9 @@ const dns = require('dns');
 // Force IPv4 resolution globally
 dns.setDefaultResultOrder('ipv4first');
 
+// Disable Node.js TLS certificate validation globally (Supabase uses self-signed certs)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 // Try direct connection first (better for migrations), fall back to pooler
 const DATABASE_URL = process.env.DIRECT_URL || process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
 
@@ -82,13 +85,12 @@ const pool = new Pool({
   connectionString: DATABASE_URL,
   ssl: process.env.DB_SSL === 'false' ? false : {
     rejectUnauthorized: false,
-    checkServerIdentity: () => null,  // Disable all certificate validation
     servername: new URL(DATABASE_URL).hostname, // Enable SNI
   },
   lookup: dnsLookup,
   family: 4,  // Force IPv4 only
   max: 5,
-  connectTimeoutMillis: 10000,  // 10 second timeout
+  connectTimeoutMillis: 10000,
   idleTimeoutMillis: 5000,
 });
 

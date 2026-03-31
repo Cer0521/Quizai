@@ -4,6 +4,11 @@ const dns = require('dns');
 // Force IPv4 resolution globally - prevents IPv6 timeout hangs
 dns.setDefaultResultOrder('ipv4first');
 
+// Disable Node.js TLS certificate validation globally (Supabase uses self-signed certs)
+if (process.env.DB_SSL !== 'false') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
+
 const DATABASE_URL = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
 
 const resolver = new dns.Resolver();
@@ -69,15 +74,11 @@ function getDb() {
   }
 
   if (!pool) {
-    // Parse SSL settings - allows disabling for local dev
-    let sslConfig = false;
-    if (process.env.DB_SSL !== 'false') {
-      sslConfig = {
-        rejectUnauthorized: false,
-        checkServerIdentity: () => null,  // Disable all certificate validation
-        servername: new URL(DATABASE_URL).hostname, // Enable SNI
-      };
-    }
+    // SSL config - certificate validation disabled at Node level via NODE_TLS_REJECT_UNAUTHORIZED
+    const sslConfig = process.env.DB_SSL === 'false' ? false : {
+      rejectUnauthorized: false,
+      servername: new URL(DATABASE_URL).hostname, // Enable SNI
+    };
 
     pool = new Pool({
       connectionString: DATABASE_URL,
@@ -85,8 +86,8 @@ function getDb() {
       lookup: dnsLookup,
       family: 4,  // Force IPv4 only
       idleTimeoutMillis: 5000,
-      max: 10,  // Connection pool size
-      min: 2,   // Minimum idle connections
+      max: 10,
+      min: 2,
       connectTimeoutMillis: 10000,
     });
   }
