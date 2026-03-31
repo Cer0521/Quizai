@@ -2,6 +2,9 @@ require('dotenv').config();
 const { Pool } = require('pg');
 const dns = require('dns');
 
+// Force IPv4 resolution globally
+dns.setDefaultResultOrder('ipv4first');
+
 // Try direct connection first (better for migrations), fall back to pooler
 const DATABASE_URL = process.env.DIRECT_URL || process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
 
@@ -84,6 +87,8 @@ const pool = new Pool({
   lookup: dnsLookup,
   family: 4,  // Force IPv4 only
   max: 5,
+  connectTimeoutMillis: 8000,  // 8 second timeout to prevent IPv6 hangs
+  idleTimeoutMillis: 5000,
 });
 
 async function run(sql, label) {

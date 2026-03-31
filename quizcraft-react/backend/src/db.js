@@ -1,6 +1,9 @@
 const { Pool } = require('pg');
 const dns = require('dns');
 
+// Force IPv4 resolution globally - prevents IPv6 timeout hangs
+dns.setDefaultResultOrder('ipv4first');
+
 const DATABASE_URL = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
 
 const resolver = new dns.Resolver();
