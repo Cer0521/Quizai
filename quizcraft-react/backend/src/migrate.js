@@ -82,12 +82,13 @@ const pool = new Pool({
   connectionString: DATABASE_URL,
   ssl: process.env.DB_SSL === 'false' ? false : {
     rejectUnauthorized: false,
-    servername: new URL(DATABASE_URL).hostname, // Enable SNI for certificate chain
+    checkServerIdentity: () => null,  // Disable all certificate validation
+    servername: new URL(DATABASE_URL).hostname, // Enable SNI
   },
   lookup: dnsLookup,
   family: 4,  // Force IPv4 only
   max: 5,
-  connectTimeoutMillis: 8000,  // 8 second timeout to prevent IPv6 hangs
+  connectTimeoutMillis: 10000,  // 10 second timeout
   idleTimeoutMillis: 5000,
 });
 

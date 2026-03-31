@@ -74,7 +74,8 @@ function getDb() {
     if (process.env.DB_SSL !== 'false') {
       sslConfig = {
         rejectUnauthorized: false,
-        servername: new URL(DATABASE_URL).hostname, // Enable SNI for certificate chain
+        checkServerIdentity: () => null,  // Disable all certificate validation
+        servername: new URL(DATABASE_URL).hostname, // Enable SNI
       };
     }
 
@@ -86,6 +87,7 @@ function getDb() {
       idleTimeoutMillis: 5000,
       max: 10,  // Connection pool size
       min: 2,   // Minimum idle connections
+      connectTimeoutMillis: 10000,
     });
   }
   return pool;
