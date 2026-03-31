@@ -160,7 +160,9 @@ npm install
 npm run dev
 ```
 
-Then visit `http://localhost:5173` (frontend automatically proxies API calls to localhost:3001).
+Then visit your Vercel production URL (for example: `https://quizcraft.vercel.app`).
+
+For production access, visit your Vercel URL (for example: `https://quizcraft.vercel.app`) and make sure `VITE_API_URL` points to your Render backend URL (for example: `https://quizai-1-ydi0.onrender.com`).
 
 ---
 
@@ -189,7 +191,7 @@ Then visit `http://localhost:5173` (frontend automatically proxies API calls to 
 - `DB_SSL`: Always `true` for Supabase
 
 ### Frontend (.env.local during development)
-- `VITE_API_URL`: Set on Vercel, use localhost:3001 locally
+- `VITE_API_URL`: Set on Vercel to your Render backend URL (example: `https://quizai-1-ydi0.onrender.com`)
 
 ---
 

@@ -19,7 +19,6 @@ function parseAllowedOrigins() {
 function isAllowedOrigin(origin, allowedOrigins) {
   if (!origin) return true; // non-browser clients
   if (allowedOrigins.includes(origin)) return true;
-  if (/^http:\/\/localhost:\d+$/i.test(origin) || /^https?:\/\/127\.0\.0\.1:\d+$/i.test(origin)) return true;
 
   try {
     const hostname = new URL(origin).hostname;
@@ -81,6 +80,6 @@ app.use((err, req, res, next) => {
   }
 
   app.listen(PORT, () => {
-    console.log(`QuizCraft API running on http://localhost:${PORT}`);
+    console.log(`QuizCraft API running on port ${PORT}`);
   });
 })();
