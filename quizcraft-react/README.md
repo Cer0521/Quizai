@@ -242,7 +242,8 @@ JWT_EXPIRES_IN=7d
 
 # App
 PORT=3001
-APP_URL=http://localhost:5173
+# For Render production, set this to your Vercel frontend URL
+APP_URL=https://your-frontend.vercel.app
 
 # Database (PostgreSQL / Supabase)
 DATABASE_URL=postgresql://postgres:<password>@<project-ref>.supabase.co:6543/postgres
