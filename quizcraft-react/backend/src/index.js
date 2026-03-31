@@ -12,7 +12,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 function parseAllowedOrigins() {
-  const raw = process.env.APP_URL || 'http://localhost:5173';
+  const raw = process.env.APP_URL || '';
   return raw.split(',').map(v => v.trim()).filter(Boolean);
 }
 
