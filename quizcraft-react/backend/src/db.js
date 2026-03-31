@@ -66,12 +66,23 @@ function getDb() {
   }
 
   if (!pool) {
+    // Parse SSL settings - allows disabling for local dev
+    let sslConfig = false;
+    if (process.env.DB_SSL !== 'false') {
+      sslConfig = {
+        rejectUnauthorized: false,
+        servername: new URL(DATABASE_URL).hostname, // Enable SNI for certificate chain
+      };
+    }
+
     pool = new Pool({
       connectionString: DATABASE_URL,
-      ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
+      ssl: sslConfig,
       lookup: dnsLookup,
       family: 4,  // Force IPv4 only
       idleTimeoutMillis: 5000,
+      max: 10,  // Connection pool size
+      min: 2,   // Minimum idle connections
     });
   }
   return pool;

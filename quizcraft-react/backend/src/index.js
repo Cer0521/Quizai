@@ -32,6 +32,9 @@ function isAllowedOrigin(origin, allowedOrigins) {
 
 const allowedOrigins = parseAllowedOrigins();
 
+// Trust proxy (required for Render + rate limiting)
+app.set('trust proxy', 1);
+
 // Security / middleware
 app.use(cors({
   origin(origin, callback) {
@@ -49,6 +52,10 @@ const limiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for health checks
+    return req.path === '/api/health';
+  },
 });
 app.use('/api', limiter);
 

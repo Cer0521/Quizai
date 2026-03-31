@@ -13,5 +13,17 @@ export default defineConfig({
         changeOrigin: true,
       }
     }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'chart-vendor': ['recharts'],
+          'http-vendor': ['axios']
+        }
+      }
+    },
+    chunkSizeWarningLimit: 600
   }
 })

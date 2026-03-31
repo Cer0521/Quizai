@@ -77,9 +77,13 @@ function dnsLookup(hostname, options, callback) {
 
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
+  ssl: process.env.DB_SSL === 'false' ? false : {
+    rejectUnauthorized: false,
+    servername: new URL(DATABASE_URL).hostname, // Enable SNI for certificate chain
+  },
   lookup: dnsLookup,
   family: 4,  // Force IPv4 only
+  max: 5,
 });
 
 async function run(sql, label) {
