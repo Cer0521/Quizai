@@ -11,17 +11,6 @@ if (process.env.DB_SSL !== 'false') {
 
 const DATABASE_URL = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
 
-function normalizeDatabaseUrl(rawUrl) {
-  const parsed = new URL(rawUrl);
-  // Let pg Pool ssl config control TLS behavior; strip URL SSL flags that can override it.
-  parsed.searchParams.delete('sslmode');
-  parsed.searchParams.delete('sslcert');
-  parsed.searchParams.delete('sslkey');
-  parsed.searchParams.delete('sslrootcert');
-  parsed.searchParams.delete('sslcrl');
-  return parsed.toString();
-}
-
 const resolver = new dns.Resolver();
 resolver.setServers((process.env.DB_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',').map(s => s.trim()).filter(Boolean));
 
@@ -67,6 +56,44 @@ function dnsLookup(hostname, options, callback) {
 
 let pool;
 
+function normalizeDatabaseUrl(rawUrl) {
+  const url = new URL(rawUrl);
+  // Prevent pg from inheriting SSL behavior from URL flags like sslmode=require.
+  const sslParams = [
+    'sslmode',
+    'sslcert',
+    'sslkey',
+    'sslrootcert',
+    'sslcrl',
+    'requiressl',
+    'ssl_min_protocol_version',
+    'ssl_max_protocol_version',
+    'uselibpqcompat',
+  ];
+  sslParams.forEach((key) => url.searchParams.delete(key));
+  return url;
+}
+
+function buildPgConfig(rawUrl) {
+  const url = normalizeDatabaseUrl(rawUrl);
+  const database = (url.pathname || '/postgres').replace(/^\//, '') || 'postgres';
+
+  return {
+    user: decodeURIComponent(url.username || ''),
+    password: decodeURIComponent(url.password || ''),
+    host: url.hostname,
+    port: Number(url.port || 5432),
+    database,
+    ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
+    lookup: dnsLookup,
+    family: 4,
+    idleTimeoutMillis: 5000,
+    max: 10,
+    min: 2,
+    connectTimeoutMillis: 10000,
+  };
+}
+
 function toPgSql(sql) {
   let out = sql;
   let idx = 0;
@@ -85,23 +112,7 @@ function getDb() {
   }
 
   if (!pool) {
-    const normalizedUrl = normalizeDatabaseUrl(DATABASE_URL);
-    // SSL config - certificate validation disabled at Node level via NODE_TLS_REJECT_UNAUTHORIZED
-    const sslConfig = process.env.DB_SSL === 'false' ? false : {
-      rejectUnauthorized: false,
-      servername: new URL(normalizedUrl).hostname, // Enable SNI
-    };
-
-    pool = new Pool({
-      connectionString: normalizedUrl,
-      ssl: sslConfig,
-      lookup: dnsLookup,
-      family: 4,  // Force IPv4 only
-      idleTimeoutMillis: 5000,
-      max: 10,
-      min: 2,
-      connectTimeoutMillis: 10000,
-    });
+    pool = new Pool(buildPgConfig(DATABASE_URL));
   }
   return pool;
 }

@@ -11,17 +11,6 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 // Try direct connection first (better for migrations), fall back to pooler
 const DATABASE_URL = process.env.DIRECT_URL || process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
 
-function normalizeDatabaseUrl(rawUrl) {
-  const parsed = new URL(rawUrl);
-  // Let pg Pool ssl config control TLS behavior; strip URL SSL flags that can override it.
-  parsed.searchParams.delete('sslmode');
-  parsed.searchParams.delete('sslcert');
-  parsed.searchParams.delete('sslkey');
-  parsed.searchParams.delete('sslrootcert');
-  parsed.searchParams.delete('sslcrl');
-  return parsed.toString();
-}
-
 if (!DATABASE_URL) {
   console.error('Missing DIRECT_URL or DATABASE_URL (or SUPABASE_DB_URL) in environment.');
   process.exit(1);
@@ -34,6 +23,42 @@ if (/[<>\[\]]/.test(DATABASE_URL) || /YOUR_DB_PASSWORD|YOUR-PASSWORD|project-ref
 
 const resolver = new dns.Resolver();
 resolver.setServers((process.env.DB_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',').map(s => s.trim()).filter(Boolean));
+
+function normalizeDatabaseUrl(rawUrl) {
+  const url = new URL(rawUrl);
+  const sslParams = [
+    'sslmode',
+    'sslcert',
+    'sslkey',
+    'sslrootcert',
+    'sslcrl',
+    'requiressl',
+    'ssl_min_protocol_version',
+    'ssl_max_protocol_version',
+    'uselibpqcompat',
+  ];
+  sslParams.forEach((key) => url.searchParams.delete(key));
+  return url;
+}
+
+function buildPgConfig(rawUrl) {
+  const url = normalizeDatabaseUrl(rawUrl);
+  const database = (url.pathname || '/postgres').replace(/^\//, '') || 'postgres';
+
+  return {
+    user: decodeURIComponent(url.username || ''),
+    password: decodeURIComponent(url.password || ''),
+    host: url.hostname,
+    port: Number(url.port || 5432),
+    database,
+    ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
+    lookup: dnsLookup,
+    family: 4,
+    max: 5,
+    connectTimeoutMillis: 10000,
+    idleTimeoutMillis: 5000,
+  };
+}
 
 function dnsLookup(hostname, options, callback) {
   const family = typeof options === 'object' && options?.family ? options.family : 0;
@@ -92,20 +117,7 @@ function dnsLookup(hostname, options, callback) {
   });
 }
 
-const NORMALIZED_DATABASE_URL = normalizeDatabaseUrl(DATABASE_URL);
-
-const pool = new Pool({
-  connectionString: NORMALIZED_DATABASE_URL,
-  ssl: process.env.DB_SSL === 'false' ? false : {
-    rejectUnauthorized: false,
-    servername: new URL(NORMALIZED_DATABASE_URL).hostname, // Enable SNI
-  },
-  lookup: dnsLookup,
-  family: 4,  // Force IPv4 only
-  max: 5,
-  connectTimeoutMillis: 10000,
-  idleTimeoutMillis: 5000,
-});
+const pool = new Pool(buildPgConfig(DATABASE_URL));
 
 async function run(sql, label) {
   try {
