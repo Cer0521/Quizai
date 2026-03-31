@@ -4,6 +4,7 @@ import { useAuth } from '../../../contexts/AuthContext'
 import QuestionCard from '../../../components/quiz/QuestionCard'
 import QuizTimer from '../../../components/quiz/QuizTimer'
 import PreQuizGate from '../../../components/quiz/PreQuizGate'
+import { useQuizProtection } from '../../../hooks/useQuizProtection'
 import api from '../../../api'
 
 export default function QuizPage() {
@@ -16,7 +17,9 @@ export default function QuizPage() {
   const [submitting, setSubmitting] = useState(false)
   const [gateComplete, setGateComplete] = useState(false)
   const [fullscreenLost, setFullscreenLost] = useState(false)
+  const [protectionNotice, setProtectionNotice] = useState('')
   const saveTimerRef = useRef(null)
+  const submittingRef = useRef(false)
 
   useEffect(() => {
     api.get(`/assignments/${assignmentId}/attempt`).then(r => {
@@ -83,17 +86,51 @@ export default function QuizPage() {
     autoSave(updated)
   }
 
-  async function handleSubmit() {
+  const handleSubmit = useCallback(async ({ forced = false, reason = '' } = {}) => {
+    if (!state?.attempt?.id || submittingRef.current) return
+
     const unanswered = state.questions.filter(q => !answers[q.id]).length
-    if (unanswered > 0 && !confirm(`You have ${unanswered} unanswered question(s). Submit anyway?`)) return
+    if (!forced && unanswered > 0 && !confirm(`You have ${unanswered} unanswered question(s). Submit anyway?`)) return
+
+    submittingRef.current = true
     setSubmitting(true)
+
     const payload = Object.entries(answers).map(([qid, ans]) => ({ question_id: parseInt(qid), ...ans }))
-    await api.put(`/attempts/${state.attempt.id}/answers`, { answers: payload }).catch(() => {})
-    const res = await api.post(`/attempts/${state.attempt.id}/submit`)
-    sessionStorage.removeItem('quiz_timer')
-    if (document.fullscreenElement) await document.exitFullscreen().catch(() => {})
-    navigate(`/student/result/${state.attempt.id}`, { state: { result: res.data } })
-  }
+    try {
+      await api.put(`/attempts/${state.attempt.id}/answers`, { answers: payload }).catch(() => {})
+      const res = await api.post(`/attempts/${state.attempt.id}/submit`)
+      sessionStorage.removeItem('quiz_timer')
+      if (document.fullscreenElement) await document.exitFullscreen().catch(() => {})
+      navigate(`/student/result/${state.attempt.id}`, {
+        state: { result: { ...res.data, auto_submitted: forced, auto_submit_reason: reason } }
+      })
+    } catch {
+      setSubmitting(false)
+      submittingRef.current = false
+    }
+  }, [answers, navigate, state])
+
+  const handleProtectionViolation = useCallback((event) => {
+    if (!gateComplete || submittingRef.current) return
+
+    setProtectionNotice(event.message)
+
+    if (event.shouldAutoSubmit) {
+      handleSubmit({ forced: true, reason: event.type })
+    }
+  }, [gateComplete, handleSubmit])
+
+  const { violations } = useQuizProtection(state?.attempt?.id, handleProtectionViolation, {
+    enabled: gateComplete && !submitting,
+    maxViolations: 3
+  })
+
+  useEffect(() => {
+    if (!protectionNotice) return
+
+    const timer = setTimeout(() => setProtectionNotice(''), 3500)
+    return () => clearTimeout(timer)
+  }, [protectionNotice])
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -131,6 +168,18 @@ export default function QuizPage() {
         </div>
       )}
 
+      {/* Violation warning */}
+      {gateComplete && protectionNotice && (
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-xl bg-amber-50 border border-amber-300 text-amber-900 rounded-lg shadow-md px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-medium">{protectionNotice}</p>
+            <span className="text-xs font-bold bg-amber-200 text-amber-900 px-2 py-1 rounded">
+              Violations: {violations}/3
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white border-b shadow-sm sticky top-0 z-30">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
@@ -138,7 +187,7 @@ export default function QuizPage() {
             <h1 className="font-bold text-gray-900 truncate text-base">{quiz.title}</h1>
             <p className="text-xs text-gray-400">{answeredCount}/{questions.length} answered</p>
           </div>
-          {quiz.time_limit && <QuizTimer timeLimitMinutes={quiz.time_limit} onExpire={handleSubmit} />}
+          {quiz.time_limit && <QuizTimer timeLimitMinutes={quiz.time_limit} onExpire={() => handleSubmit({ forced: true, reason: 'timer_expired' })} />}
           <button onClick={handleSubmit} disabled={submitting}
             className="px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 disabled:opacity-50 transition flex-shrink-0">
             {submitting ? 'Submitting...' : 'Submit'}
