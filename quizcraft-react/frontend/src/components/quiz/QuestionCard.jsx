@@ -1,7 +1,18 @@
 export default function QuestionCard({ question, index, answer, onChange, disabled }) {
   const { question_type, question_text, options } = question
+
+  function blockClipboard(e) {
+    e.preventDefault()
+  }
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+    <div
+      className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm"
+      onCopy={blockClipboard}
+      onCut={blockClipboard}
+      onPaste={blockClipboard}
+      onDrop={blockClipboard}
+    >
       <div className="flex items-start gap-3 mb-4">
         <span className="flex-shrink-0 w-8 h-8 bg-red-600 text-white rounded-full flex items-center justify-center text-sm font-bold">{index + 1}</span>
         <div className="flex-1">
@@ -50,6 +61,10 @@ export default function QuestionCard({ question, index, answer, onChange, disabl
         <div className="pl-11">
           <input type="text" disabled={disabled} value={answer?.answer_text || ''}
             onChange={e => !disabled && onChange({ answer_text: e.target.value, selected_option_id: null })}
+            onPaste={blockClipboard}
+            onCopy={blockClipboard}
+            onCut={blockClipboard}
+            onDrop={blockClipboard}
             placeholder="Type your answer..."
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 disabled:opacity-60 disabled:cursor-not-allowed" />
         </div>
@@ -58,6 +73,10 @@ export default function QuestionCard({ question, index, answer, onChange, disabl
         <div className="pl-11">
           <textarea disabled={disabled} value={answer?.answer_text || ''}
             onChange={e => !disabled && onChange({ answer_text: e.target.value, selected_option_id: null })}
+            onPaste={blockClipboard}
+            onCopy={blockClipboard}
+            onCut={blockClipboard}
+            onDrop={blockClipboard}
             placeholder="Write your answer here..."
             rows={5}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 disabled:opacity-60 disabled:cursor-not-allowed resize-y" />

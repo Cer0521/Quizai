@@ -29,6 +29,11 @@ export const useQuizProtection = (attemptId, onViolation, options = {}) => {
     }
   }, [attemptId, maxViolations, onViolation])
 
+  const registerManualViolation = useCallback((type, baseMessage) => {
+    if (!enabled) return
+    registerViolation(type, baseMessage)
+  }, [enabled, registerViolation])
+
   // Tab Switching Detection
   useEffect(() => {
     if (!enabled) return
@@ -54,19 +59,31 @@ export const useQuizProtection = (attemptId, onViolation, options = {}) => {
 
     const handleCopyLike = (e) => {
       e.preventDefault()
+      e.stopPropagation()
+      registerViolation('clipboard_action', 'Warning: copy/paste is not allowed during quiz')
     }
 
-    document.addEventListener('contextmenu', handleContextMenu)
-    document.addEventListener('copy', handleCopyLike)
-    document.addEventListener('cut', handleCopyLike)
-    document.addEventListener('paste', handleCopyLike)
-    return () => {
-      document.removeEventListener('contextmenu', handleContextMenu)
-      document.removeEventListener('copy', handleCopyLike)
-      document.removeEventListener('cut', handleCopyLike)
-      document.removeEventListener('paste', handleCopyLike)
+    const handleBeforeInput = (e) => {
+      if (e.inputType === 'insertFromPaste') {
+        e.preventDefault()
+        e.stopPropagation()
+        registerViolation('clipboard_action', 'Warning: paste is not allowed during quiz')
+      }
     }
-  }, [enabled])
+
+    document.addEventListener('contextmenu', handleContextMenu, true)
+    document.addEventListener('copy', handleCopyLike, true)
+    document.addEventListener('cut', handleCopyLike, true)
+    document.addEventListener('paste', handleCopyLike, true)
+    document.addEventListener('beforeinput', handleBeforeInput, true)
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu, true)
+      document.removeEventListener('copy', handleCopyLike, true)
+      document.removeEventListener('cut', handleCopyLike, true)
+      document.removeEventListener('paste', handleCopyLike, true)
+      document.removeEventListener('beforeinput', handleBeforeInput, true)
+    }
+  }, [enabled, registerViolation])
 
   // Keyboard Shortcut Detection
   useEffect(() => {
@@ -75,9 +92,10 @@ export const useQuizProtection = (attemptId, onViolation, options = {}) => {
     const handleKeyDown = (e) => {
       const key = e.key.toLowerCase()
       const isCopyShortcut = (e.ctrlKey || e.metaKey) && ['c', 'x', 'v', 'a'].includes(key)
+      const isShiftInsertPaste = e.shiftKey && key === 'insert'
       const isAltTabAttempt = e.altKey && key === 'tab'
 
-      if (isCopyShortcut || isAltTabAttempt) {
+      if (isCopyShortcut || isShiftInsertPaste || isAltTabAttempt) {
         e.preventDefault()
         registerViolation('keyboard_shortcut', 'Warning: restricted keyboard shortcut detected')
       }
@@ -89,6 +107,7 @@ export const useQuizProtection = (attemptId, onViolation, options = {}) => {
 
   return {
     violations,
+    registerManualViolation,
     resetViolations: () => {
       violationsRef.current = 0
       setViolations(0)

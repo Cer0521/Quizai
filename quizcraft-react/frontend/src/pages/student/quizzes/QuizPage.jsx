@@ -34,16 +34,6 @@ export default function QuizPage() {
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
   }, [assignmentId])
 
-  // Fullscreen change listener
-  useEffect(() => {
-    if (!gateComplete) return
-    function onFsChange() {
-      setFullscreenLost(!document.fullscreenElement)
-    }
-    document.addEventListener('fullscreenchange', onFsChange)
-    return () => document.removeEventListener('fullscreenchange', onFsChange)
-  }, [gateComplete])
-
   // Clean up fullscreen on unmount
   useEffect(() => {
     return () => {
@@ -120,10 +110,27 @@ export default function QuizPage() {
     }
   }, [gateComplete, handleSubmit])
 
-  const { violations } = useQuizProtection(state?.attempt?.id, handleProtectionViolation, {
+  const { violations, registerManualViolation } = useQuizProtection(state?.attempt?.id, handleProtectionViolation, {
     enabled: gateComplete && !submitting,
     maxViolations: 3
   })
+
+  // Fullscreen change listener
+  useEffect(() => {
+    if (!gateComplete || submitting) return
+
+    function onFsChange() {
+      const isFullscreen = Boolean(document.fullscreenElement)
+      setFullscreenLost(!isFullscreen)
+
+      if (!isFullscreen) {
+        registerManualViolation('fullscreen_exit', 'Warning: fullscreen exit detected')
+      }
+    }
+
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [gateComplete, registerManualViolation, submitting])
 
   useEffect(() => {
     if (!protectionNotice) return
