@@ -110,9 +110,10 @@ export default function QuizPage() {
     }
   }, [gateComplete, handleSubmit])
 
-  const { violations, registerManualViolation } = useQuizProtection(state?.attempt?.id, handleProtectionViolation, {
+  const { violations, fullscreenExits, altTabAttempts, registerManualViolation } = useQuizProtection(state?.attempt?.id, handleProtectionViolation, {
     enabled: gateComplete && !submitting,
-    maxViolations: 3
+    maxFullscreenExits: 3,
+    maxAltTabs: 3
   })
 
   // Fullscreen change listener
@@ -181,9 +182,10 @@ export default function QuizPage() {
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-medium">{protectionNotice}</p>
             <span className="text-xs font-bold bg-amber-200 text-amber-900 px-2 py-1 rounded">
-              Violations: {violations}/3
+              FS: {fullscreenExits}/3 | Alt+Tab: {altTabAttempts}/3
             </span>
           </div>
+          <p className="text-[11px] text-amber-700 mt-1">Total violations tracked: {violations}</p>
         </div>
       )}
 

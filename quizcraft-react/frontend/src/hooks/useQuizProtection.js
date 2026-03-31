@@ -1,9 +1,13 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 
 export const useQuizProtection = (attemptId, onViolation, options = {}) => {
-  const { enabled = true, maxViolations = 3 } = options
+  const { enabled = true, maxFullscreenExits = 3, maxAltTabs = 3 } = options
   const [violations, setViolations] = useState(0)
   const violationsRef = useRef(0)
+  const [fullscreenExits, setFullscreenExits] = useState(0)
+  const [altTabAttempts, setAltTabAttempts] = useState(0)
+  const fullscreenExitsRef = useRef(0)
+  const altTabAttemptsRef = useRef(0)
   const lastViolationRef = useRef(0)
 
   const registerViolation = useCallback((type, baseMessage) => {
@@ -13,21 +17,47 @@ export const useQuizProtection = (attemptId, onViolation, options = {}) => {
     if (now - lastViolationRef.current < 800) return
     lastViolationRef.current = now
 
-    violationsRef.current += 1
+    let normalizedType = type
+    let typeCount = 0
+    let typeLimit = 0
+    let shouldAutoSubmit = false
+
+    if (type === 'fullscreen_exit') {
+      fullscreenExitsRef.current += 1
+      setFullscreenExits(fullscreenExitsRef.current)
+      typeCount = fullscreenExitsRef.current
+      typeLimit = maxFullscreenExits
+      shouldAutoSubmit = typeCount >= typeLimit
+    } else if (type === 'alt_tab' || type === 'tab_switch') {
+      normalizedType = 'alt_tab'
+      altTabAttemptsRef.current += 1
+      setAltTabAttempts(altTabAttemptsRef.current)
+      typeCount = altTabAttemptsRef.current
+      typeLimit = maxAltTabs
+      shouldAutoSubmit = typeCount >= typeLimit
+    } else {
+      return
+    }
+
+    violationsRef.current = fullscreenExitsRef.current + altTabAttemptsRef.current
     setViolations(violationsRef.current)
 
     if (onViolation) {
       onViolation({
-        type,
+        type: normalizedType,
         attemptId,
         violations: violationsRef.current,
-        shouldAutoSubmit: violationsRef.current >= maxViolations,
-        message: violationsRef.current >= maxViolations
+        shouldAutoSubmit,
+        typeCount,
+        typeLimit,
+        fullscreenExits: fullscreenExitsRef.current,
+        altTabAttempts: altTabAttemptsRef.current,
+        message: shouldAutoSubmit
           ? 'Quiz is being auto-submitted due to repeated violations.'
-          : `${baseMessage} (${violationsRef.current}/${maxViolations})`
+          : `${baseMessage} (${typeCount}/${typeLimit})`
       })
     }
-  }, [attemptId, maxViolations, onViolation])
+  }, [attemptId, maxAltTabs, maxFullscreenExits, onViolation])
 
   const registerManualViolation = useCallback((type, baseMessage) => {
     if (!enabled) return
@@ -60,14 +90,12 @@ export const useQuizProtection = (attemptId, onViolation, options = {}) => {
     const handleCopyLike = (e) => {
       e.preventDefault()
       e.stopPropagation()
-      registerViolation('clipboard_action', 'Warning: copy/paste is not allowed during quiz')
     }
 
     const handleBeforeInput = (e) => {
       if (e.inputType === 'insertFromPaste') {
         e.preventDefault()
         e.stopPropagation()
-        registerViolation('clipboard_action', 'Warning: paste is not allowed during quiz')
       }
     }
 
@@ -95,9 +123,14 @@ export const useQuizProtection = (attemptId, onViolation, options = {}) => {
       const isShiftInsertPaste = e.shiftKey && key === 'insert'
       const isAltTabAttempt = e.altKey && key === 'tab'
 
-      if (isCopyShortcut || isShiftInsertPaste || isAltTabAttempt) {
+      if (isCopyShortcut || isShiftInsertPaste) {
         e.preventDefault()
-        registerViolation('keyboard_shortcut', 'Warning: restricted keyboard shortcut detected')
+        return
+      }
+
+      if (isAltTabAttempt) {
+        e.preventDefault()
+        registerViolation('alt_tab', 'Warning: Alt+Tab/tab switch detected')
       }
     }
 
@@ -107,10 +140,16 @@ export const useQuizProtection = (attemptId, onViolation, options = {}) => {
 
   return {
     violations,
+    fullscreenExits,
+    altTabAttempts,
     registerManualViolation,
     resetViolations: () => {
       violationsRef.current = 0
+      fullscreenExitsRef.current = 0
+      altTabAttemptsRef.current = 0
       setViolations(0)
+      setFullscreenExits(0)
+      setAltTabAttempts(0)
     }
   }
 }
