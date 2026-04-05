@@ -10,20 +10,52 @@ async function authenticate(req, res, next) {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const user = await dbGet(
-      `SELECT id, name, email, role, plan, quiz_count, billing_cycle_start, team_id, team_role,
-              email_verified_at, created_at
-       FROM users
-       WHERE id = ?`,
-      [decoded.id]
-    );
+    const normalizedId = Number.parseInt(decoded?.id, 10);
+    const decodedEmail = typeof decoded?.email === 'string' ? decoded.email.trim().toLowerCase() : '';
+
+    let rawUser;
+    try {
+      if (Number.isInteger(normalizedId)) {
+        rawUser = await dbGet('SELECT * FROM users WHERE id = ?', [normalizedId]);
+      }
+
+      if (!rawUser && decodedEmail) {
+        rawUser = await dbGet('SELECT * FROM users WHERE lower(email) = ?', [decodedEmail]);
+      }
+    } catch (err) {
+      console.error('Auth middleware DB lookup error:', err?.message || err);
+      return res.status(503).json({ message: 'Authentication service temporarily unavailable.' });
+    }
+
+    const user = rawUser
+      ? {
+          id: rawUser.id,
+          name: rawUser.name,
+          email: rawUser.email,
+          role: rawUser.role,
+          plan: rawUser.plan || 'FREE',
+          quiz_count: rawUser.quiz_count || 0,
+          billing_cycle_start: rawUser.billing_cycle_start || null,
+          team_id: rawUser.team_id ?? null,
+          team_role: rawUser.team_role || 'OWNER',
+          email_verified_at: rawUser.email_verified_at || null,
+          created_at: rawUser.created_at,
+        }
+      : null;
     if (!user) return res.status(401).json({ message: 'Unauthenticated.' });
 
     req.user = user;
     next();
-  } catch {
-    return res.status(401).json({ message: 'Unauthenticated.' });
+  } catch (err) {
+    const tokenErrorNames = new Set(['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError']);
+    if (tokenErrorNames.has(err?.name)) {
+      return res.status(401).json({ message: 'Unauthenticated.' });
+    }
+
+    console.error('Auth middleware token verification error:', err?.message || err);
+    return res.status(503).json({ message: 'Authentication service temporarily unavailable.' });
   }
+
 }
 
 function requireRole(role) {

@@ -12,10 +12,16 @@ export default function Login() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    const email = form.email.trim()
+    const password = form.password
+    if (!email || !password) {
+      setErrors({ general: ['Email and password are required.'] })
+      return
+    }
     setSubmitting(true)
     setErrors({})
     try {
-      const data = await login(form.email, form.password)
+      const data = await login(email, password)
       // Route to correct dashboard based on role
       navigate(data.user.role === 'teacher' ? '/teacher/dashboard' : '/student/dashboard')
     } catch (err) {
@@ -49,11 +55,14 @@ export default function Login() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">Email</label>
+          <label htmlFor="login-email" className="block text-sm font-medium text-gray-700">Email</label>
           <input
+            id="login-email"
+            name="email"
             type="email"
             value={form.email}
             onChange={e => setForm({ ...form, email: e.target.value })}
+            autoComplete="email"
             className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-red-500 focus:ring-red-500"
             required autoFocus
           />
@@ -61,11 +70,14 @@ export default function Login() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Password</label>
+          <label htmlFor="login-password" className="block text-sm font-medium text-gray-700">Password</label>
           <input
+            id="login-password"
+            name="password"
             type="password"
             value={form.password}
             onChange={e => setForm({ ...form, password: e.target.value })}
+            autoComplete="current-password"
             className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-red-500 focus:ring-red-500"
             required
           />
@@ -75,6 +87,7 @@ export default function Login() {
         <div>
           <label className="inline-flex items-center">
             <input
+              name="remember"
               type="checkbox"
               checked={form.remember}
               onChange={e => setForm({ ...form, remember: e.target.checked })}

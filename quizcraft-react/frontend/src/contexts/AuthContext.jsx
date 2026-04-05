@@ -8,6 +8,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [subscription, setSubscription] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [authError, setAuthError] = useState(null)
 
   async function loadSubscription() {
     try {
@@ -23,17 +24,33 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (token) {
+      setAuthError(null)
       api.get('/auth/user')
         .then(async res => {
           setUser(res.data.user)
           await loadSubscription()
+          setAuthError(null)
         })
-        .catch(() => {
-          localStorage.removeItem('token')
+        .catch((err) => {
+          const status = err?.response?.status
+          if (status === 401) {
+            localStorage.removeItem('token')
+          } else {
+            // Keep token for transient backend failures so users can recover on retry.
+            console.error('Auth bootstrap failed:', status || 'NETWORK_ERROR')
+          }
+          setUser(null)
           setSubscription(null)
+          setAuthError({
+            status,
+            message: status === 401
+              ? 'Your session is no longer valid.'
+              : 'We could not verify your session right now. Please retry or sign out.',
+          })
         })
         .finally(() => setLoading(false))
     } else {
+      setAuthError(null)
       setLoading(false)
     }
   }, [])
@@ -59,6 +76,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('token')
     setUser(null)
     setSubscription(null)
+    setAuthError(null)
   }
 
   function updateUser(updatedUser) { setUser(updatedUser) }
@@ -95,6 +113,7 @@ export function AuthProvider({ children }) {
         updateUser,
         upgradeSubscription,
         refreshSubscription: loadSubscription,
+        authError,
         canAccessFeature,
         isTeacher,
         isStudent,

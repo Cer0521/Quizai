@@ -33,24 +33,58 @@ const Spinner = () => (
   </div>
 )
 
+function AuthBootstrapError() {
+  const { authError, logout } = useAuth()
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
+        <h1 className="text-xl font-bold text-gray-900 mb-2">Session verification failed</h1>
+        <p className="text-sm text-gray-600 mb-6">
+          {authError?.message || 'We could not verify your session right now.'}
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition"
+          >
+            Retry
+          </button>
+          <button
+            type="button"
+            onClick={() => logout()}
+            className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function RequireAuth({ children }) {
-  const { user, loading } = useAuth()
+  const { user, loading, authError } = useAuth()
   if (loading) return <Spinner />
+  if (authError && !user) return <AuthBootstrapError />
   if (!user) return <Navigate to="/login" replace />
   return children
 }
 
 function RequireTeacher({ children }) {
-  const { user, loading } = useAuth()
+  const { user, loading, authError } = useAuth()
   if (loading) return <Spinner />
+  if (authError && !user) return <AuthBootstrapError />
   if (!user) return <Navigate to="/login" replace />
   if (user.role !== 'teacher') return <Navigate to="/student/dashboard" replace />
   return children
 }
 
 function RequireStudent({ children }) {
-  const { user, loading } = useAuth()
+  const { user, loading, authError } = useAuth()
   if (loading) return <Spinner />
+  if (authError && !user) return <AuthBootstrapError />
   if (!user) return <Navigate to="/login" replace />
   if (user.role !== 'student') return <Navigate to="/teacher/dashboard" replace />
   return children
@@ -89,8 +123,9 @@ function LockedFeature({ feature }) {
 }
 
 function RequireFeature({ feature, children }) {
-  const { user, loading, canAccessFeature } = useAuth()
+  const { user, loading, authError, canAccessFeature } = useAuth()
   if (loading) return <Spinner />
+  if (authError && !user) return <AuthBootstrapError />
   if (!user) return <Navigate to="/login" replace />
   if (!canAccessFeature(feature)) return <LockedFeature feature={feature} />
   return children

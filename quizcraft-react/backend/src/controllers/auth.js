@@ -51,7 +51,7 @@ async function register(req, res) {
     const hashed = await bcrypt.hash(password, 12);
     const verifyToken = uuidv4();
 
-    const result = await dbRun(
+    await dbRun(
       'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
       [name, email, hashed, userRole]
     );
@@ -61,12 +61,22 @@ async function register(req, res) {
       [email, verifyToken]
     );
 
-    const user = await dbGet(
-      `SELECT id, name, email, role, plan, quiz_count, billing_cycle_start, team_id, team_role, email_verified_at
-       FROM users
-       WHERE id = ?`,
-      [result.lastID]
-    );
+    const inserted = await dbGet('SELECT * FROM users WHERE email = ?', [email]);
+    if (!inserted) {
+      return res.status(500).json({ errors: { general: ['Account was created but could not be loaded. Please try again.'] } });
+    }
+    const user = {
+      id: inserted.id,
+      name: inserted.name,
+      email: inserted.email,
+      role: inserted.role,
+      plan: inserted.plan || 'FREE',
+      quiz_count: inserted.quiz_count || 0,
+      billing_cycle_start: inserted.billing_cycle_start || null,
+      team_id: inserted.team_id ?? null,
+      team_role: inserted.team_role || 'OWNER',
+      email_verified_at: inserted.email_verified_at || null,
+    };
 
     try { await sendVerificationEmail(email, verifyToken); } catch (e) { console.error('Verify email error:', e.message); }
 
