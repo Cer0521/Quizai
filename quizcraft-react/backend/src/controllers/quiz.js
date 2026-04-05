@@ -163,28 +163,11 @@ async function store(req, res) {
   }
 }
 
-// ── Teacher: manually create quiz ─────────────────────
-async function storeManual(req, res) {
-  try {
-    const { title, description, time_limit } = req.body;
-    if (!title) return res.status(422).json({ errors: { title: ['Title is required.'] } });
-
-    const result = await dbRun(
-      `INSERT INTO quizzes (user_id, title, description, source_type, total_questions, time_limit)
-       VALUES (?, ?, ?, 'manual', 0, ?)`,
-      [req.user.id, title, description || null, time_limit || null]
-    );
-    const quiz = await dbGet('SELECT * FROM quizzes WHERE id = ?', [result.lastID]);
-
-    if (req.subscription?.plan === 'FREE') {
-      await incrementQuizUsage(req.user.id);
-    }
-
-    return res.status(201).json({ quiz: parseQuiz(quiz) });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
-  }
+// ── Teacher: manual quiz creation disabled ────────────
+async function storeManualDisabled(req, res) {
+  return res.status(410).json({
+    message: 'Manual quiz creation is no longer available. Please use AI Generate.',
+  });
 }
 
 // ── Teacher: update quiz meta + questions ─────────────
@@ -435,4 +418,4 @@ async function analytics(req, res) {
   }
 }
 
-module.exports = { index, show, store, storeManual, update, publish, destroy, addQuestion, updateQuestion, deleteQuestion, analytics };
+module.exports = { index, show, store, storeManualDisabled, update, publish, destroy, addQuestion, updateQuestion, deleteQuestion, analytics };

@@ -10,7 +10,6 @@ import VerifyEmail from './pages/auth/VerifyEmail'
 
 import TeacherDashboard from './pages/teacher/Dashboard'
 import QuizList from './pages/teacher/quizzes/QuizList'
-import CreateQuiz from './pages/teacher/quizzes/CreateQuiz'
 import GenerateQuiz from './pages/teacher/quizzes/GenerateQuiz'
 import EditQuiz from './pages/teacher/quizzes/EditQuiz'
 import QuizAnalytics from './pages/teacher/quizzes/QuizAnalytics'
@@ -146,7 +145,7 @@ export default function App() {
       {/* Teacher routes */}
       <Route path="/teacher/dashboard" element={<RequireTeacher><TeacherDashboard /></RequireTeacher>} />
       <Route path="/teacher/quizzes" element={<RequireTeacher><QuizList /></RequireTeacher>} />
-      <Route path="/teacher/quizzes/create" element={<RequireTeacher><CreateQuiz /></RequireTeacher>} />
+      <Route path="/teacher/quizzes/create" element={<Navigate to="/teacher/quizzes/generate" replace />} />
       <Route
         path="/teacher/quizzes/generate"
         element={<RequireTeacher><RequireFeature feature="blueprinting"><GenerateQuiz /></RequireFeature></RequireTeacher>}

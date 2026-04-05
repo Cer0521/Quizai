@@ -170,7 +170,6 @@ export default function QuizList() {
             ? <Link to="/teacher/quizzes/generate" className="px-3 py-1.5 text-xs font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 transition">✨ AI Generate</Link>
             : <Link to="/pricing" className="px-3 py-1.5 text-xs font-bold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition">🔒 AI Generate</Link>
           }
-          <Link to="/teacher/quizzes/create" className="px-3 py-1.5 text-xs font-bold bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition">+ Manual</Link>
         </div>
       </div>
     }>
