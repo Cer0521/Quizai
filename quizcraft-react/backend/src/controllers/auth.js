@@ -61,7 +61,12 @@ async function register(req, res) {
       [email, verifyToken]
     );
 
-    const user = await dbGet('SELECT id, name, email, role, email_verified_at FROM users WHERE id = ?', [result.lastID]);
+    const user = await dbGet(
+      `SELECT id, name, email, role, plan, quiz_count, billing_cycle_start, team_id, team_role, email_verified_at
+       FROM users
+       WHERE id = ?`,
+      [result.lastID]
+    );
 
     try { await sendVerificationEmail(email, verifyToken); } catch (e) { console.error('Verify email error:', e.message); }
 

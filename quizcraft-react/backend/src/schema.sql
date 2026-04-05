@@ -9,10 +9,27 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT NOT NULL UNIQUE,
   password TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'student',
+  plan TEXT NOT NULL DEFAULT 'FREE',
+  quiz_count INTEGER NOT NULL DEFAULT 0,
+  billing_cycle_start TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  team_id BIGINT NULL,
+  team_role TEXT NOT NULL DEFAULT 'OWNER',
   email_verified_at TIMESTAMPTZ NULL,
   remember_token TEXT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS team_invites (
+  id BIGSERIAL PRIMARY KEY,
+  team_id BIGINT NOT NULL,
+  inviter_id BIGINT NOT NULL,
+  email TEXT NOT NULL,
+  token TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  accepted_at TIMESTAMPTZ NULL,
+  CONSTRAINT team_invites_inviter_fk FOREIGN KEY (inviter_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS password_reset_tokens (

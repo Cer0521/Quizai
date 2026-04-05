@@ -153,6 +153,11 @@ async function migrate() {
       email TEXT NOT NULL UNIQUE,
       password TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'student',
+      plan TEXT NOT NULL DEFAULT 'FREE',
+      quiz_count INTEGER NOT NULL DEFAULT 0,
+      billing_cycle_start TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      team_id BIGINT NULL,
+      team_role TEXT NOT NULL DEFAULT 'OWNER',
       email_verified_at TIMESTAMPTZ NULL,
       remember_token TEXT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -160,6 +165,11 @@ async function migrate() {
     )`, 'users');
 
   await ensureColumn('users', 'role', `ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'student'`);
+  await ensureColumn('users', 'plan', `ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'FREE'`);
+  await ensureColumn('users', 'quiz_count', `ALTER TABLE users ADD COLUMN quiz_count INTEGER NOT NULL DEFAULT 0`);
+  await ensureColumn('users', 'billing_cycle_start', `ALTER TABLE users ADD COLUMN billing_cycle_start TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
+  await ensureColumn('users', 'team_id', `ALTER TABLE users ADD COLUMN team_id BIGINT NULL`);
+  await ensureColumn('users', 'team_role', `ALTER TABLE users ADD COLUMN team_role TEXT NOT NULL DEFAULT 'OWNER'`);
 
   await run(`
     CREATE TABLE IF NOT EXISTS password_reset_tokens (
@@ -315,6 +325,19 @@ async function migrate() {
       created_at TIMESTAMPTZ DEFAULT NOW(),
       CONSTRAINT notifications_user_fk FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`, 'notifications');
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS team_invites (
+      id BIGSERIAL PRIMARY KEY,
+      team_id BIGINT NOT NULL,
+      inviter_id BIGINT NOT NULL,
+      email TEXT NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      accepted_at TIMESTAMPTZ NULL,
+      CONSTRAINT team_invites_inviter_fk FOREIGN KEY (inviter_id) REFERENCES users(id) ON DELETE CASCADE
+    )`, 'team_invites');
 
   console.log('\n\u2705 PostgreSQL migration complete!');
 }

@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { authenticate, requireVerified, requireTeacher, requireStudent } = require('../middleware/auth');
+const { enforceQuizLimit, checkPlanAccess, checkAdsVisibility } = require('../middleware/subscription');
 const quizController = require('../controllers/quiz');
 const dashboardController = require('../controllers/dashboard');
 const profileController = require('../controllers/profile');
@@ -10,6 +11,8 @@ const assignmentController = require('../controllers/assignment');
 const attemptController = require('../controllers/attempt');
 const notificationController = require('../controllers/notification');
 const guestController = require('../controllers/guest');
+const subscriptionController = require('../controllers/subscription');
+const teamController = require('../controllers/team');
 
 // ── Multer ─────────────────────────────────────────────
 const storage = multer.diskStorage({
@@ -40,11 +43,22 @@ router.delete('/profile', authenticate, profileController.deleteAccount);
 router.get('/notifications', authenticate, notificationController.index);
 router.post('/notifications/read', authenticate, notificationController.markRead);
 
-// ── Teacher: quiz management ───────────────────────────
+// ── Subscription ───────────────────────────────────────
+router.get('/user/subscription', authenticate, subscriptionController.getCurrentSubscription);
+router.post('/subscription/upgrade', authenticate, subscriptionController.upgradePlan);
+router.get('/user/ads-visibility', authenticate, checkAdsVisibility, subscriptionController.getAdsVisibility);
+
+// ── Teacher middleware bundle ──────────────────────────
 const ta = [authenticate, requireVerified, requireTeacher];
+
+// ── Team ───────────────────────────────────────────────
+router.post('/team/invite', ...ta, teamController.invite);
+router.post('/team/join', ...ta, teamController.join);
+
+// ── Teacher: quiz management ───────────────────────────
 router.get('/quizzes', authenticate, requireVerified, quizController.index);
-router.post('/quizzes/generate', ...ta, upload.single('document'), quizController.store);
-router.post('/quizzes/manual', ...ta, quizController.storeManual);
+router.post('/quizzes/generate', ...ta, enforceQuizLimit, checkPlanAccess('blueprinting'), upload.single('document'), quizController.store);
+router.post('/quizzes/manual', ...ta, enforceQuizLimit, quizController.storeManual);
 router.get('/quizzes/:id', authenticate, requireVerified, quizController.show);
 router.patch('/quizzes/:id', ...ta, quizController.update);
 router.post('/quizzes/:id/publish', ...ta, quizController.publish);
@@ -52,7 +66,7 @@ router.delete('/quizzes/:id', ...ta, quizController.destroy);
 router.post('/quizzes/:id/questions', ...ta, quizController.addQuestion);
 router.put('/quizzes/:id/questions/:qid', ...ta, quizController.updateQuestion);
 router.delete('/quizzes/:id/questions/:qid', ...ta, quizController.deleteQuestion);
-router.get('/quizzes/:id/analytics', ...ta, quizController.analytics);
+router.get('/quizzes/:id/analytics', ...ta, checkPlanAccess('analytics_dashboard'), quizController.analytics);
 
 // ── Assignments ─────────────────────────────────────────
 router.get('/assignments', authenticate, requireVerified, assignmentController.index);

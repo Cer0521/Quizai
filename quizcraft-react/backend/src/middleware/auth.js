@@ -11,7 +11,10 @@ async function authenticate(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     const user = await dbGet(
-      'SELECT id, name, email, role, email_verified_at, created_at FROM users WHERE id = ?',
+      `SELECT id, name, email, role, plan, quiz_count, billing_cycle_start, team_id, team_role,
+              email_verified_at, created_at
+       FROM users
+       WHERE id = ?`,
       [decoded.id]
     );
     if (!user) return res.status(401).json({ message: 'Unauthenticated.' });

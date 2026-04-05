@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../api'
+import { PLAN_LABELS } from '../utils/subscription'
+import AdsComponent from './AdsComponent'
 
 export default function AppLayout({ children, header }) {
-  const { user, logout, isTeacher } = useAuth()
+  const { user, logout, isTeacher, subscription } = useAuth()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
@@ -35,11 +37,19 @@ export default function AppLayout({ children, header }) {
     ? [
         { to: '/teacher/dashboard', label: 'Dashboard' },
         { to: '/teacher/quizzes', label: 'My Quizzes' },
+        { to: '/pricing', label: 'Pricing' },
       ]
     : [
         { to: '/student/dashboard', label: 'My Quizzes' },
         { to: '/student/history', label: 'History' },
+        { to: '/pricing', label: 'Pricing' },
       ]
+
+  const currentPlan = PLAN_LABELS[subscription?.plan] || 'Free'
+  const usageText = subscription?.quiz_limit == null
+    ? 'Unlimited quizzes'
+    : `${subscription?.quiz_count || 0}/${subscription?.quiz_limit || 5} used`
+  const showAds = subscription?.ads_visible === true
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -64,6 +74,11 @@ export default function AppLayout({ children, header }) {
               <span className={`text-xs font-bold px-2 py-1 rounded-full ${isTeacher ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
                 {isTeacher ? 'Teacher' : 'Student'}
               </span>
+
+              <div className="text-right">
+                <p className="text-[11px] font-semibold text-gray-700">{currentPlan} Plan</p>
+                <p className="text-[10px] text-gray-500">{usageText}</p>
+              </div>
 
               {/* Notifications */}
               <div className="relative">
@@ -122,6 +137,10 @@ export default function AppLayout({ children, header }) {
             {navLinks.map(({ to, label }) => (
               <Link key={to} to={to} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50" onClick={() => setMobileOpen(false)}>{label}</Link>
             ))}
+            <div className="px-4 py-2 border-t text-xs text-gray-500">
+              <p className="font-semibold text-gray-700">{currentPlan} Plan</p>
+              <p>{usageText}</p>
+            </div>
             <Link to="/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" onClick={() => setMobileOpen(false)}>Profile</Link>
             <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Log Out</button>
           </div>
@@ -134,7 +153,10 @@ export default function AppLayout({ children, header }) {
         </header>
       )}
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">{children}</main>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        {showAds && <AdsComponent />}
+        {children}
+      </main>
     </div>
   )
 }

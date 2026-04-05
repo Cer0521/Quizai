@@ -4,6 +4,11 @@ const { randomUUID } = require('crypto');
 const { dbGet, dbAll, dbRun } = require('../db');
 const { getSupabaseClient } = require('../services/supabase');
 const { generateFromDocument } = require('../services/gemini');
+const {
+  getFeatureAccess,
+  incrementQuizUsage,
+  isBasicQuizFormat,
+} = require('../services/subscription');
 
 function parseQuiz(row) {
   if (!row) return null;
@@ -12,6 +17,15 @@ function parseQuiz(row) {
     sections_config: row.sections_config ? JSON.parse(row.sections_config) : null,
     ai_response: row.ai_response ? JSON.parse(row.ai_response) : null,
   };
+}
+
+function canUseQuestionType(userPlan, questionType) {
+  if (getFeatureAccess(userPlan, 'all_quiz_formats')) return true;
+  return isBasicQuizFormat(questionType);
+}
+
+function resolveRequestPlan(req) {
+  return req.subscription?.effective_plan || req.user?.plan || 'FREE';
 }
 
 // ── Teacher: list own quizzes ──────────────────────────
@@ -137,6 +151,11 @@ async function store(req, res) {
     }
 
     const quiz = await dbGet('SELECT * FROM quizzes WHERE id = ?', [quizId]);
+
+    if (req.subscription?.plan === 'FREE') {
+      await incrementQuizUsage(req.user.id);
+    }
+
     return res.status(201).json({ quiz: parseQuiz(quiz), message: 'Assessment generated successfully!' });
   } catch (err) {
     console.error(err);
@@ -156,6 +175,11 @@ async function storeManual(req, res) {
       [req.user.id, title, description || null, time_limit || null]
     );
     const quiz = await dbGet('SELECT * FROM quizzes WHERE id = ?', [result.lastID]);
+
+    if (req.subscription?.plan === 'FREE') {
+      await incrementQuizUsage(req.user.id);
+    }
+
     return res.status(201).json({ quiz: parseQuiz(quiz) });
   } catch (err) {
     console.error(err);
@@ -223,6 +247,18 @@ async function addQuestion(req, res) {
     if (!quiz || quiz.user_id !== req.user.id) return res.status(403).json({ message: 'Forbidden.' });
 
     const { question_text, question_type, correct_answer, options } = req.body;
+    const resolvedType = question_type || 'multiple_choice';
+
+    const currentPlan = resolveRequestPlan(req);
+    if (!canUseQuestionType(currentPlan, resolvedType)) {
+      return res.status(403).json({
+        message: 'This question format is not available on your current plan.',
+        code: 'FEATURE_LOCKED',
+        feature: 'all_quiz_formats',
+        plan: currentPlan,
+      });
+    }
+
     if (!question_text || !correct_answer)
       return res.status(422).json({ errors: { general: ['Question text and correct answer are required.'] } });
 
@@ -231,7 +267,7 @@ async function addQuestion(req, res) {
 
     const qRes = await dbRun(
       'INSERT INTO questions (quiz_id, question_text, question_type, correct_answer, order_index) VALUES (?,?,?,?,?)',
-      [quiz.id, question_text, question_type || 'multiple_choice', correct_answer, orderIndex]
+      [quiz.id, question_text, resolvedType, correct_answer, orderIndex]
     );
 
     if (options && Array.isArray(options)) {
@@ -258,8 +294,19 @@ async function updateQuestion(req, res) {
     if (!question || question.user_id !== req.user.id) return res.status(403).json({ message: 'Forbidden.' });
 
     const { question_text, question_type, correct_answer, options } = req.body;
+    const resolvedType = question_type || question.question_type;
+    const currentPlan = resolveRequestPlan(req);
+    if (!canUseQuestionType(currentPlan, resolvedType)) {
+      return res.status(403).json({
+        message: 'This question format is not available on your current plan.',
+        code: 'FEATURE_LOCKED',
+        feature: 'all_quiz_formats',
+        plan: currentPlan,
+      });
+    }
+
     await dbRun('UPDATE questions SET question_text=?, question_type=?, correct_answer=? WHERE id=?',
-      [question_text, question_type, correct_answer, question.id]);
+      [question_text, resolvedType, correct_answer, question.id]);
 
     if (options && Array.isArray(options)) {
       await dbRun('DELETE FROM options WHERE question_id = ?', [question.id]);

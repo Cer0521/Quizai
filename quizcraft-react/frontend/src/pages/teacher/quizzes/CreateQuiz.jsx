@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import AppLayout from '../../../components/AppLayout'
 import api from '../../../api'
+import { useAuth } from '../../../contexts/AuthContext'
+import { isBasicQuizFormat } from '../../../utils/subscription'
 
 const TYPES = ['multiple_choice', 'true_false', 'enumeration', 'essay']
 const TYPE_LABELS = { multiple_choice: 'Multiple Choice', true_false: 'True or False', enumeration: 'Enumeration', essay: 'Essay' }
@@ -12,11 +14,18 @@ function emptyQuestion() {
 
 export default function CreateQuiz() {
   const navigate = useNavigate()
+  const { subscription, canAccessFeature } = useAuth()
   const [step, setStep] = useState(1)
   const [meta, setMeta] = useState({ title: '', description: '', time_limit: '' })
   const [questions, setQuestions] = useState([emptyQuestion()])
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
+
+  const allowAdvancedFormats = canAccessFeature('all_quiz_formats')
+  const availableTypes = allowAdvancedFormats ? TYPES : TYPES.filter(t => isBasicQuizFormat(t))
+  const usageText = subscription?.quiz_limit == null
+    ? 'Unlimited'
+    : `${subscription?.quiz_count || 0}/${subscription?.quiz_limit || 5}`
 
   function addQuestion() { setQuestions([...questions, emptyQuestion()]) }
   function removeQuestion(i) { setQuestions(questions.filter((_, idx) => idx !== i)) }
@@ -38,7 +47,13 @@ export default function CreateQuiz() {
       sessionStorage.setItem('flash', 'Quiz created successfully!')
       navigate(`/teacher/quizzes/${quizId}/edit`)
     } catch (err) {
-      setErrors(err.response?.data?.errors || { general: ['Failed to save quiz.'] })
+      if (err.response?.data?.code === 'QUIZ_LIMIT_REACHED') {
+        setErrors({ general: ['Free plan limit reached (5 quizzes / 14 days). Upgrade to Pro or Team for unlimited quizzes.'] })
+      } else if (err.response?.data?.code === 'FEATURE_LOCKED') {
+        setErrors({ general: ['This question format is locked on your current plan. Upgrade to unlock advanced formats.'] })
+      } else {
+        setErrors(err.response?.data?.errors || { general: ['Failed to save quiz.'] })
+      }
     } finally {
       setSaving(false)
     }
@@ -47,6 +62,10 @@ export default function CreateQuiz() {
   return (
     <AppLayout header={<h2 className="text-xl font-bold text-gray-800">✏️ Create Quiz Manually</h2>}>
       <div className="max-w-2xl mx-auto space-y-5">
+        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg text-sm flex justify-between items-center">
+          <span>Quiz usage this cycle: <strong>{usageText}</strong></span>
+          <Link to="/pricing" className="font-semibold underline">Manage plan</Link>
+        </div>
         {errors.general && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{errors.general[0]}</div>}
 
         {/* Step 1: Meta */}
@@ -86,8 +105,14 @@ export default function CreateQuiz() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500" />
                 <select value={q.question_type} onChange={e => updateQ(qi, 'question_type', e.target.value)}
                   className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-red-500">
-                  {TYPES.map(t => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
+                  {availableTypes.map(t => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
                 </select>
+                {!allowAdvancedFormats && (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+                    Free plan supports basic formats only. Upgrade for enumeration and essay questions.
+                    <Link to="/pricing" className="ml-1 font-semibold underline">View plans</Link>
+                  </p>
+                )}
                 {q.question_type === 'multiple_choice' && (
                   <div className="space-y-2">
                     <p className="text-xs text-gray-500">Answer options (A, B, C, D)</p>

@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import AppLayout from '../../../components/AppLayout'
 import api from '../../../api'
+import { useAuth } from '../../../contexts/AuthContext'
 
 const TYPES = ['Multiple Choice', 'True or False', 'Enumeration']
 
 export default function GenerateQuiz() {
   const navigate = useNavigate()
+  const { subscription } = useAuth()
   const [form, setForm] = useState({ title: '', description: '', time_limit: '', total_questions: '' })
   const [sections, setSections] = useState([{ type: 'Multiple Choice', count: '' }])
   const [file, setFile] = useState(null)
@@ -20,6 +22,9 @@ export default function GenerateQuiz() {
   const sectionTotal = sections.reduce((sum, s) => sum + (parseInt(s.count) || 0), 0)
   const totalQ = parseInt(form.total_questions) || 0
   const mismatch = totalQ > 0 && sectionTotal !== totalQ
+  const usageText = subscription?.quiz_limit == null
+    ? 'Unlimited'
+    : `${subscription?.quiz_count || 0}/${subscription?.quiz_limit || 5}`
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -36,7 +41,13 @@ export default function GenerateQuiz() {
       sessionStorage.setItem('flash', res.data.message || 'Quiz generated successfully!')
       navigate(`/teacher/quizzes/${res.data.quiz.id}/edit`)
     } catch (err) {
-      setErrors(err.response?.data?.errors || { general: [err.response?.data?.message || 'Generation failed.'] })
+      if (err.response?.data?.code === 'QUIZ_LIMIT_REACHED') {
+        setErrors({ general: ['Free plan limit reached (5 quizzes / 14 days). Upgrade to Pro or Team for unlimited quizzes.'] })
+      } else if (err.response?.data?.code === 'FEATURE_LOCKED') {
+        setErrors({ general: ['AI blueprinting is available on Pro and Team plans.'] })
+      } else {
+        setErrors(err.response?.data?.errors || { general: [err.response?.data?.message || 'Generation failed.'] })
+      }
     } finally {
       setLoading(false)
     }
@@ -45,6 +56,10 @@ export default function GenerateQuiz() {
   return (
     <AppLayout header={<h2 className="text-xl font-bold text-gray-800">✨ Generate Quiz with AI</h2>}>
       <div className="max-w-2xl mx-auto">
+        <div className="mb-4 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg text-sm flex justify-between items-center">
+          <span>Quiz usage this cycle: <strong>{usageText}</strong></span>
+          <Link to="/pricing" className="font-semibold underline">Manage plan</Link>
+        </div>
         <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-5">
           {errors.general && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{errors.general[0]}</div>}
 

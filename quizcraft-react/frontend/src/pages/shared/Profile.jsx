@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import api from '../../api'
 
 export default function Profile() {
-  const { user, updateUser, logout } = useAuth()
+  const { user, subscription, updateUser, logout } = useAuth()
   const navigate = useNavigate()
   const [info, setInfo] = useState({ name: user?.name || '', email: user?.email || '' })
   const [pass, setPass] = useState({ current_password: '', password: '', password_confirmation: '' })
@@ -68,6 +68,12 @@ export default function Profile() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
               <p className="text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-lg capitalize">{user?.role}</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Team Role</label>
+              <p className="text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-lg capitalize">
+                {subscription?.team_role ? String(subscription.team_role).toLowerCase() : 'owner'}
+              </p>
             </div>
             <div className="flex justify-end">
               <button type="submit" disabled={savingInfo}
