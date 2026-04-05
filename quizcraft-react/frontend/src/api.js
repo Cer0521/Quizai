@@ -36,9 +36,11 @@ api.interceptors.response.use(
   err => {
     const status = err.response?.status
     const code = err.response?.data?.code
+    const reqUrl = String(err.config?.url || '')
+    const isSessionCheckRequest = reqUrl.includes('/auth/user') || reqUrl.includes('/auth/logout')
 
-    if (status === 401) {
-      // Token expired or invalid — clear and redirect to login
+    if (status === 401 && isSessionCheckRequest) {
+      // Clear session only when the backend rejects auth/session checks.
       localStorage.removeItem('token')
       window.location.href = '/login'
     } else if (status === 403 && code === 'EMAIL_NOT_VERIFIED') {

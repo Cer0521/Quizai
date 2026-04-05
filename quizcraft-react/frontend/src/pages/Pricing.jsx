@@ -127,7 +127,7 @@ export default function Pricing() {
                 <ul className="mt-4 space-y-2 text-sm text-gray-700 flex-1">
                   {plan.highlights.map(item => (
                     <li key={item} className="flex gap-2">
-                      <span className="text-green-600">\u2713</span>
+                      <span className="text-green-600">✓</span>
                       <span>{item}</span>
                     </li>
                   ))}
