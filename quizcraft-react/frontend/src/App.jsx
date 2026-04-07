@@ -148,7 +148,7 @@ export default function App() {
       <Route path="/teacher/quizzes/create" element={<Navigate to="/teacher/quizzes/generate" replace />} />
       <Route
         path="/teacher/quizzes/generate"
-        element={<RequireTeacher><RequireFeature feature="blueprinting"><GenerateQuiz /></RequireFeature></RequireTeacher>}
+        element={<RequireTeacher><GenerateQuiz /></RequireTeacher>}
       />
       <Route path="/teacher/quizzes/:id/edit" element={<RequireTeacher><EditQuiz /></RequireTeacher>} />
       <Route

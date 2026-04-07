@@ -126,7 +126,6 @@ export default function QuizList() {
   const [loading, setLoading] = useState(true)
   const [flash, setFlash] = useState(sessionStorage.getItem('flash') || '')
   const [publishModal, setPublishModal] = useState(null) // the quiz object being configured
-  const canUseBlueprinting = canAccessFeature('blueprinting')
   const canUseAnalytics = canAccessFeature('analytics_dashboard')
 
   useEffect(() => {
@@ -166,10 +165,7 @@ export default function QuizList() {
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold text-gray-800">My Quizzes</h2>
         <div className="flex gap-2">
-          {canUseBlueprinting
-            ? <Link to="/teacher/quizzes/generate" className="px-3 py-1.5 text-xs font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 transition">✨ AI Generate</Link>
-            : <Link to="/pricing" className="px-3 py-1.5 text-xs font-bold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition">🔒 AI Generate</Link>
-          }
+          <Link to="/teacher/quizzes/generate" className="px-3 py-1.5 text-xs font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 transition">✨ AI Generate</Link>
         </div>
       </div>
     }>

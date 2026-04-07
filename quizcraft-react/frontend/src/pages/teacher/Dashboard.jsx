@@ -23,7 +23,6 @@ export default function TeacherDashboard() {
   const [stats, setStats] = useState(null)
   const [quizzes, setQuizzes] = useState([])
   const [loading, setLoading] = useState(true)
-  const canUseBlueprinting = canAccessFeature('blueprinting')
   const canUseAnalytics = canAccessFeature('analytics_dashboard')
 
   const loadData = () => {
@@ -73,10 +72,7 @@ export default function TeacherDashboard() {
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-gray-800">Published Quizzes</h3>
               <div className="flex gap-2">
-                {canUseBlueprinting
-                  ? <Link to="/teacher/quizzes/generate" className="px-3 py-1.5 text-xs font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 transition">✨ Generate with AI</Link>
-                  : <Link to="/pricing" className="px-3 py-1.5 text-xs font-bold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition">🔒 Generate with AI</Link>
-                }
+                <Link to="/teacher/quizzes/generate" className="px-3 py-1.5 text-xs font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 transition">✨ Generate with AI</Link>
               </div>
             </div>
 

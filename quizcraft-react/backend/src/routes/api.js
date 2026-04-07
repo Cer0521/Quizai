@@ -57,7 +57,7 @@ router.post('/team/join', ...ta, teamController.join);
 
 // ── Teacher: quiz management ───────────────────────────
 router.get('/quizzes', authenticate, requireVerified, quizController.index);
-router.post('/quizzes/generate', ...ta, enforceQuizLimit, checkPlanAccess('blueprinting'), upload.single('document'), quizController.store);
+router.post('/quizzes/generate', ...ta, enforceQuizLimit, upload.single('document'), quizController.store);
 router.post('/quizzes/manual', ...ta, quizController.storeManualDisabled);
 router.get('/quizzes/:id', authenticate, requireVerified, quizController.show);
 router.patch('/quizzes/:id', ...ta, quizController.update);
