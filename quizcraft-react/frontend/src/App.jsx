@@ -153,7 +153,7 @@ export default function App() {
       <Route path="/teacher/quizzes/:id/edit" element={<RequireTeacher><EditQuiz /></RequireTeacher>} />
       <Route
         path="/teacher/quizzes/:id/analytics"
-        element={<RequireTeacher><RequireFeature feature="analytics_dashboard"><QuizAnalytics /></RequireFeature></RequireTeacher>}
+        element={<RequireTeacher><QuizAnalytics /></RequireTeacher>}
       />
       <Route path="/teacher/quizzes/:id/assign" element={<RequireTeacher><AssignQuiz /></RequireTeacher>} />
 

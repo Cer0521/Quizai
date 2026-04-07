@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import AppLayout from '../../components/AppLayout'
 import api from '../../api'
-import { useAuth } from '../../contexts/AuthContext'
 
 function StatCard({ label, value, color, icon }) {
   return (
@@ -19,11 +18,9 @@ function StatCard({ label, value, color, icon }) {
 }
 
 export default function TeacherDashboard() {
-  const { canAccessFeature } = useAuth()
   const [stats, setStats] = useState(null)
   const [quizzes, setQuizzes] = useState([])
   const [loading, setLoading] = useState(true)
-  const canUseAnalytics = canAccessFeature('analytics_dashboard')
 
   const loadData = () => {
     setLoading(true)
@@ -106,10 +103,7 @@ export default function TeacherDashboard() {
                           <div className="flex gap-2">
                             <Link to={`/teacher/quizzes/${q.id}/edit`} className="text-xs text-blue-600 hover:underline">Edit</Link>
                             <Link to={`/teacher/quizzes/${q.id}/assign`} className="text-xs text-green-600 hover:underline">Assign</Link>
-                            {canUseAnalytics
-                              ? <Link to={`/teacher/quizzes/${q.id}/analytics`} className="text-xs text-purple-600 hover:underline">Analytics</Link>
-                              : <Link to="/pricing" className="text-xs text-amber-600 hover:underline">🔒 Analytics</Link>
-                            }
+                            <Link to={`/teacher/quizzes/${q.id}/analytics`} className="text-xs text-purple-600 hover:underline">Analytics</Link>
                           </div>
                         </td>
                       </tr>

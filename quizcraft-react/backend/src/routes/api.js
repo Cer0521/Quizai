@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { authenticate, requireVerified, requireTeacher, requireStudent } = require('../middleware/auth');
-const { enforceQuizLimit, checkPlanAccess, checkAdsVisibility } = require('../middleware/subscription');
+const { enforceQuizLimit, checkAdsVisibility } = require('../middleware/subscription');
 const quizController = require('../controllers/quiz');
 const dashboardController = require('../controllers/dashboard');
 const profileController = require('../controllers/profile');
@@ -66,7 +66,7 @@ router.delete('/quizzes/:id', ...ta, quizController.destroy);
 router.post('/quizzes/:id/questions', ...ta, quizController.addQuestion);
 router.put('/quizzes/:id/questions/:qid', ...ta, quizController.updateQuestion);
 router.delete('/quizzes/:id/questions/:qid', ...ta, quizController.deleteQuestion);
-router.get('/quizzes/:id/analytics', ...ta, checkPlanAccess('analytics_dashboard'), quizController.analytics);
+router.get('/quizzes/:id/analytics', ...ta, quizController.analytics);
 
 // ── Assignments ─────────────────────────────────────────
 router.get('/assignments', authenticate, requireVerified, assignmentController.index);

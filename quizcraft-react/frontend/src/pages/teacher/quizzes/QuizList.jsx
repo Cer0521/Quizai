@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import AppLayout from '../../../components/AppLayout'
 import api from '../../../api'
-import { useAuth } from '../../../contexts/AuthContext'
 
 const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin
 
@@ -121,12 +120,10 @@ function PublishSettingsModal({ quiz, onClose, onPublished }) {
 
 // ── Main Quiz List ────────────────────────────────────
 export default function QuizList() {
-  const { canAccessFeature } = useAuth()
   const [quizzes, setQuizzes] = useState([])
   const [loading, setLoading] = useState(true)
   const [flash, setFlash] = useState(sessionStorage.getItem('flash') || '')
   const [publishModal, setPublishModal] = useState(null) // the quiz object being configured
-  const canUseAnalytics = canAccessFeature('analytics_dashboard')
 
   useEffect(() => {
     sessionStorage.removeItem('flash')
@@ -219,10 +216,7 @@ export default function QuizList() {
                       <div className="flex gap-2 flex-wrap">
                         <Link to={`/teacher/quizzes/${q.id}/edit`} className="text-xs text-blue-600 hover:underline">Edit</Link>
                         <Link to={`/teacher/quizzes/${q.id}/assign`} className="text-xs text-green-600 hover:underline">Assign</Link>
-                        {canUseAnalytics
-                          ? <Link to={`/teacher/quizzes/${q.id}/analytics`} className="text-xs text-purple-600 hover:underline">Analytics</Link>
-                          : <Link to="/pricing" className="text-xs text-amber-600 hover:underline">🔒 Analytics</Link>
-                        }
+                        <Link to={`/teacher/quizzes/${q.id}/analytics`} className="text-xs text-purple-600 hover:underline">Analytics</Link>
                         <button onClick={() => openPublishModal(q)} className="text-xs text-orange-600 hover:underline">
                           {q.is_published ? 'Settings' : 'Publish'}
                         </button>
