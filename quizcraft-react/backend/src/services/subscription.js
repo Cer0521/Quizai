@@ -97,14 +97,33 @@ function cycleExpired(billingCycleStart, cycleDays) {
   return Date.now() >= expiresAt;
 }
 
+async function loadUserSubscriptionRow(userId) {
+  try {
+    return await dbGet(
+      `SELECT id, plan, quiz_count, billing_cycle_start, team_id, team_role
+       FROM users
+       WHERE id = ?`,
+      [userId]
+    );
+  } catch (err) {
+    const msg = String(err?.message || '').toLowerCase();
+    if (msg.includes('column "plan" does not exist') || msg.includes('column plan does not exist')) {
+      const row = await dbGet(
+        `SELECT id, quiz_count, billing_cycle_start, team_id, team_role
+         FROM users
+         WHERE id = ?`,
+        [userId]
+      );
+      if (!row) return null;
+      return { ...row, plan: SUBSCRIPTION_PLANS.FREE };
+    }
+    throw err;
+  }
+}
+
 async function getSubscriptionState(userId, options = {}) {
   const includeTeamMembers = options.includeTeamMembers === true;
-  const row = await dbGet(
-    `SELECT id, plan, quiz_count, billing_cycle_start, team_id, team_role
-     FROM users
-     WHERE id = ?`,
-    [userId]
-  );
+  const row = await loadUserSubscriptionRow(userId);
 
   if (!row) return null;
 
@@ -151,13 +170,32 @@ async function getSubscriptionState(userId, options = {}) {
   };
 
   if (includeTeamMembers && row.team_id) {
-    const teamMembers = await dbAll(
-      `SELECT id, name, email, team_role, plan
-       FROM users
-       WHERE team_id = ?
-       ORDER BY created_at ASC`,
-      [row.team_id]
-    ).catch(() => null);
+    let teamMembers = null;
+    try {
+      teamMembers = await dbAll(
+        `SELECT id, name, email, team_role, plan
+         FROM users
+         WHERE team_id = ?
+         ORDER BY created_at ASC`,
+        [row.team_id]
+      );
+    } catch (err) {
+      const msg = String(err?.message || '').toLowerCase();
+      if (msg.includes('column "plan" does not exist') || msg.includes('column plan does not exist')) {
+        teamMembers = await dbAll(
+          `SELECT id, name, email, team_role
+           FROM users
+           WHERE team_id = ?
+           ORDER BY created_at ASC`,
+          [row.team_id]
+        ).catch(() => null);
+        if (Array.isArray(teamMembers)) {
+          teamMembers = teamMembers.map(member => ({ ...member, plan: SUBSCRIPTION_PLANS.FREE }));
+        }
+      } else {
+        teamMembers = null;
+      }
+    }
 
     if (Array.isArray(teamMembers)) {
       state.team_members = teamMembers;
