@@ -58,6 +58,7 @@ const PLAN_DETAILS = {
 };
 
 const BASIC_QUIZ_FORMATS = new Set(['multiple_choice', 'true_false']);
+let usersColumnCache = null;
 
 function normalizePlan(plan) {
   const normalized = String(plan || '').toUpperCase();
@@ -97,28 +98,45 @@ function cycleExpired(billingCycleStart, cycleDays) {
   return Date.now() >= expiresAt;
 }
 
+async function getUsersColumnSet() {
+  if (usersColumnCache) return usersColumnCache;
+
+  const rows = await dbAll(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'users'`
+  );
+  usersColumnCache = new Set(rows.map((row) => row.column_name));
+  return usersColumnCache;
+}
+
+async function hasUsersColumn(columnName) {
+  const columns = await getUsersColumnSet();
+  return columns.has(columnName);
+}
+
 async function loadUserSubscriptionRow(userId) {
-  try {
-    return await dbGet(
-      `SELECT id, plan, quiz_count, billing_cycle_start, team_id, team_role
-       FROM users
-       WHERE id = ?`,
-      [userId]
-    );
-  } catch (err) {
-    const msg = String(err?.message || '').toLowerCase();
-    if (msg.includes('column "plan" does not exist') || msg.includes('column plan does not exist')) {
-      const row = await dbGet(
-        `SELECT id, quiz_count, billing_cycle_start, team_id, team_role
-         FROM users
-         WHERE id = ?`,
-        [userId]
-      );
-      if (!row) return null;
-      return { ...row, plan: SUBSCRIPTION_PLANS.FREE };
-    }
-    throw err;
-  }
+  const hasPlan = await hasUsersColumn('plan');
+  const hasQuizCount = await hasUsersColumn('quiz_count');
+  const hasBillingCycleStart = await hasUsersColumn('billing_cycle_start');
+  const hasTeamId = await hasUsersColumn('team_id');
+  const hasTeamRole = await hasUsersColumn('team_role');
+
+  const selectCols = [
+    'id',
+    hasPlan ? 'plan' : `'${SUBSCRIPTION_PLANS.FREE}' AS plan`,
+    hasQuizCount ? 'quiz_count' : '0::int AS quiz_count',
+    hasBillingCycleStart ? 'billing_cycle_start' : 'NOW() AS billing_cycle_start',
+    hasTeamId ? 'team_id' : 'NULL::bigint AS team_id',
+    hasTeamRole ? 'team_role' : `'OWNER' AS team_role`,
+  ];
+
+  return dbGet(
+    `SELECT ${selectCols.join(', ')}
+     FROM users
+     WHERE id = ?`,
+    [userId]
+  );
 }
 
 async function getSubscriptionState(userId, options = {}) {
@@ -135,14 +153,18 @@ async function getSubscriptionState(userId, options = {}) {
   let billingCycleStart = row.billing_cycle_start;
 
   if (cycleExpired(billingCycleStart, details.cycleDays)) {
-    await dbRun(
-      `UPDATE users
-       SET quiz_count = 0,
-           billing_cycle_start = NOW(),
-           updated_at = NOW()
-       WHERE id = ?`,
-      [userId]
-    );
+    const setClauses = [];
+    if (await hasUsersColumn('quiz_count')) setClauses.push('quiz_count = 0');
+    if (await hasUsersColumn('billing_cycle_start')) setClauses.push('billing_cycle_start = NOW()');
+    if (await hasUsersColumn('updated_at')) setClauses.push('updated_at = NOW()');
+    if (setClauses.length) {
+      await dbRun(
+        `UPDATE users
+         SET ${setClauses.join(', ')}
+         WHERE id = ?`,
+        [userId]
+      );
+    }
     quizCount = 0;
     billingCycleStart = new Date().toISOString();
   }
@@ -170,31 +192,23 @@ async function getSubscriptionState(userId, options = {}) {
   };
 
   if (includeTeamMembers && row.team_id) {
+    const teamSelectCols = ['id', 'name', 'email'];
+    if (await hasUsersColumn('team_role')) teamSelectCols.push('team_role');
+    else teamSelectCols.push(`'OWNER' AS team_role`);
+    if (await hasUsersColumn('plan')) teamSelectCols.push('plan');
+    else teamSelectCols.push(`'${SUBSCRIPTION_PLANS.FREE}' AS plan`);
+
     let teamMembers = null;
     try {
       teamMembers = await dbAll(
-        `SELECT id, name, email, team_role, plan
+        `SELECT ${teamSelectCols.join(', ')}
          FROM users
          WHERE team_id = ?
          ORDER BY created_at ASC`,
         [row.team_id]
       );
     } catch (err) {
-      const msg = String(err?.message || '').toLowerCase();
-      if (msg.includes('column "plan" does not exist') || msg.includes('column plan does not exist')) {
-        teamMembers = await dbAll(
-          `SELECT id, name, email, team_role
-           FROM users
-           WHERE team_id = ?
-           ORDER BY created_at ASC`,
-          [row.team_id]
-        ).catch(() => null);
-        if (Array.isArray(teamMembers)) {
-          teamMembers = teamMembers.map(member => ({ ...member, plan: SUBSCRIPTION_PLANS.FREE }));
-        }
-      } else {
-        teamMembers = null;
-      }
+      teamMembers = null;
     }
 
     if (Array.isArray(teamMembers)) {
@@ -225,10 +239,14 @@ async function canCreateQuiz(userId) {
 }
 
 async function incrementQuizUsage(userId) {
+  if (!(await hasUsersColumn('quiz_count'))) return;
+
+  const setClauses = ['quiz_count = COALESCE(quiz_count, 0) + 1'];
+  if (await hasUsersColumn('updated_at')) setClauses.push('updated_at = NOW()');
+
   await dbRun(
     `UPDATE users
-     SET quiz_count = COALESCE(quiz_count, 0) + 1,
-         updated_at = NOW()
+     SET ${setClauses.join(', ')}
      WHERE id = ?`,
     [userId]
   );
