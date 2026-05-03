@@ -26,36 +26,42 @@ export default function Login() {
   }
 
   return (
-    <GuestLayout>
+    <GuestLayout title="Welcome back" subtitle="Sign in to your account">
       {errors.general && (
-        <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded text-sm">
+        <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
           {errors.general[0]}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">Email</label>
+          <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
           <input
+            id="login-email"
+            name="email"
             type="email"
             value={form.email}
             onChange={e => setForm({ ...form, email: e.target.value })}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-red-500 focus:ring-red-500"
+            autoComplete="email"
+            className="input"
             required autoFocus
           />
-          {errors.email && <p className="text-red-600 text-sm mt-1">{errors.email[0]}</p>}
+          {errors.email && <p className="text-red-600 text-xs mt-1">{errors.email[0]}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Password</label>
+          <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
           <input
+            id="login-password"
+            name="password"
             type="password"
             value={form.password}
             onChange={e => setForm({ ...form, password: e.target.value })}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-red-500 focus:ring-red-500"
+            autoComplete="current-password"
+            className="input"
             required
           />
-          {errors.password && <p className="text-red-600 text-sm mt-1">{errors.password[0]}</p>}
+          {errors.password && <p className="text-red-600 text-xs mt-1">{errors.password[0]}</p>}
         </div>
 
         <div>
@@ -64,28 +70,28 @@ export default function Login() {
               type="checkbox"
               checked={form.remember}
               onChange={e => setForm({ ...form, remember: e.target.checked })}
-              className="rounded border-gray-300 text-red-600 shadow-sm focus:ring-red-500"
+              className="rounded border-gray-300 text-brand-600 shadow-sm focus:ring-brand-500"
             />
             <span className="ms-2 text-sm text-gray-600">Remember me</span>
           </label>
         </div>
 
-        <div className="flex items-center justify-end mt-4 gap-3">
-          <Link to="/forgot-password" className="underline text-sm text-gray-600 hover:text-gray-900">
-            Forgot your password?
+        <div className="flex items-center justify-between pt-2 gap-3">
+          <Link to="/forgot-password" className="text-xs text-gray-500 hover:text-gray-700">
+            Forgot password?
           </Link>
           <button
             type="submit"
             disabled={submitting}
-            className="px-4 py-2 bg-gray-800 text-white text-sm font-bold rounded-md hover:bg-gray-700 disabled:opacity-50 transition"
+            className="btn-primary"
           >
-            {submitting ? 'Logging in...' : 'Log in'}
+            {submitting ? 'Signing in...' : 'Sign in'}
           </button>
         </div>
 
-        <p className="text-center text-sm text-gray-600 mt-2">
+        <p className="text-center text-sm text-gray-500">
           Don't have an account?{' '}
-          <Link to="/register" className="underline hover:text-gray-900">Register</Link>
+          <Link to="/register" className="text-brand-600 hover:underline font-medium">Get started free</Link>
         </p>
       </form>
     </GuestLayout>

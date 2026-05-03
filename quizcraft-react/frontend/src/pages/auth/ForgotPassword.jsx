@@ -15,7 +15,7 @@ export default function ForgotPassword() {
     setErrors({})
     try {
       const res = await api.post('/auth/forgot-password', { email })
-      setStatus(res.data.status)
+      setStatus(res.data.status || 'If that email exists, a reset link was sent.')
     } catch (err) {
       setErrors(err.response?.data?.errors || { general: ['Something went wrong.'] })
     } finally {
@@ -24,41 +24,35 @@ export default function ForgotPassword() {
   }
 
   return (
-    <GuestLayout>
-      <p className="mb-4 text-sm text-gray-600">
-        Forgot your password? Enter your email and we'll send you a reset link.
-      </p>
-
-      {status && (
-        <div className="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded text-sm">
-          {status}
+    <GuestLayout title="Reset password" subtitle="We'll send a reset link to your email">
+      {status ? (
+        <div className="text-center">
+          <p className="text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm mb-4">{status}</p>
+          <Link to="/login" className="text-sm text-brand-600 hover:underline">Back to sign in</Link>
         </div>
-      )}
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {errors.general && <div className="text-sm text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">{errors.general[0]}</div>}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-red-500 focus:ring-red-500"
-            required autoFocus
-          />
-          {errors.email && <p className="text-red-600 text-sm mt-1">{errors.email[0]}</p>}
-        </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              className="input"
+              required autoFocus
+            />
+            {errors.email && <p className="text-red-600 text-xs mt-1">{errors.email[0]}</p>}
+          </div>
 
-        <div className="flex items-center justify-between mt-4">
-          <Link to="/login" className="underline text-sm text-gray-600 hover:text-gray-900">Back to login</Link>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="px-4 py-2 bg-gray-800 text-white text-sm font-bold rounded-md hover:bg-gray-700 disabled:opacity-50 transition"
-          >
-            {submitting ? 'Sending...' : 'Email Password Reset Link'}
+          <button type="submit" disabled={submitting} className="btn-primary w-full">
+            {submitting ? 'Sending...' : 'Send reset link'}
           </button>
-        </div>
-      </form>
+
+          <p className="text-center text-sm"><Link to="/login" className="text-gray-500 hover:text-gray-700">Back to sign in</Link></p>
+        </form>
+      )}
     </GuestLayout>
   )
 }

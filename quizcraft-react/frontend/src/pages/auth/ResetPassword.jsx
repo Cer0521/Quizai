@@ -30,58 +30,53 @@ export default function ResetPassword() {
   }
 
   return (
-    <GuestLayout>
+    <GuestLayout title="Set new password">
       <form onSubmit={handleSubmit} className="space-y-4">
         {errors.general && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded text-sm">
+          <div className="text-sm text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
             {errors.general[0]}
           </div>
         )}
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Email</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
           <input
             type="email"
             value={form.email}
             onChange={e => setForm({ ...form, email: e.target.value })}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-red-500 focus:ring-red-500"
+            className="input"
             required
           />
-          {errors.email && <p className="text-red-600 text-sm mt-1">{errors.email[0]}</p>}
+          {errors.email && <p className="text-red-600 text-xs mt-1">{errors.email[0]}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">New Password</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">New password</label>
           <input
             type="password"
             value={form.password}
             onChange={e => setForm({ ...form, password: e.target.value })}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-red-500 focus:ring-red-500"
+            className="input"
             required
           />
-          {errors.password && <p className="text-red-600 text-sm mt-1">{errors.password[0]}</p>}
+          {errors.password && <p className="text-red-600 text-xs mt-1">{errors.password[0]}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Confirm password</label>
           <input
             type="password"
             value={form.password_confirmation}
             onChange={e => setForm({ ...form, password_confirmation: e.target.value })}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-red-500 focus:ring-red-500"
+            className="input"
             required
           />
+          {errors.password_confirmation && <p className="text-red-600 text-xs mt-1">{errors.password_confirmation[0]}</p>}
         </div>
 
-        <div className="flex justify-end mt-4">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="px-4 py-2 bg-gray-800 text-white text-sm font-bold rounded-md hover:bg-gray-700 disabled:opacity-50 transition"
-          >
-            {submitting ? 'Resetting...' : 'Reset Password'}
-          </button>
-        </div>
+        <button type="submit" disabled={submitting} className="btn-primary w-full">
+          {submitting ? 'Resetting...' : 'Reset password'}
+        </button>
       </form>
     </GuestLayout>
   )

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../api'
+import GuestLayout from '../../components/GuestLayout'
 
 export default function VerifyEmail() {
   const { token } = useParams()
@@ -32,49 +33,42 @@ export default function VerifyEmail() {
   if (!token) {
     // Show "please verify your email" prompt
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white p-8 rounded-lg shadow max-w-md w-full">
-          <h2 className="text-xl font-semibold mb-4">Thanks for signing up!</h2>
-          <p className="text-gray-600 mb-4">
-            Before getting started, could you verify your email address by clicking on the link we just emailed to you?
-          </p>
+      <GuestLayout title="Check your email" subtitle="Click the link we sent to verify your account">
+        <div className="text-center">
           {resendStatus && (
-            <div className="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded text-sm">
+            <div className="mb-4 text-green-700 bg-green-50 border border-green-200 px-3 py-2 rounded-lg text-sm">
               {resendStatus}
             </div>
           )}
           {user && (
-            <button onClick={handleResend} className="text-sm text-gray-600 underline hover:text-gray-900">
+            <button onClick={handleResend} className="text-sm text-brand-600 hover:underline font-medium">
               Resend verification email
             </button>
           )}
         </div>
-      </div>
+      </GuestLayout>
     )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow max-w-md w-full text-center">
+    <GuestLayout>
+      <div className="text-center py-4">
         {status ? (
           <>
-            <div className="text-green-600 text-5xl mb-4">✓</div>
-            <h2 className="text-xl font-semibold mb-2">Email Verified!</h2>
-            <p className="text-gray-600 mb-4">{status}</p>
-            <Link to="/dashboard" className="px-6 py-2 bg-red-600 text-white rounded-md font-bold hover:bg-red-700 transition">
-              Go to Dashboard
-            </Link>
+            <div className="text-4xl mb-3">✓</div>
+            <h2 className="text-lg font-semibold mb-2">Email verified!</h2>
+            <Link to="/dashboard" className="btn-primary inline-block">Go to dashboard</Link>
           </>
         ) : error ? (
           <>
-            <div className="text-red-600 text-5xl mb-4">✗</div>
-            <h2 className="text-xl font-semibold mb-2">Verification Failed</h2>
-            <p className="text-gray-600">{error}</p>
+            <div className="text-4xl mb-3">✗</div>
+            <h2 className="text-lg font-semibold mb-2 text-red-700">Verification failed</h2>
+            <p className="text-sm text-gray-500">The link may have expired.</p>
           </>
         ) : (
-          <p className="text-gray-500">Verifying your email...</p>
+          <p className="text-gray-500 text-sm">Verifying your email...</p>
         )}
       </div>
-    </div>
+    </GuestLayout>
   )
 }
